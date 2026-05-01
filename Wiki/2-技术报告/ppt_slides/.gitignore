@@ -1,0 +1,5 @@
+# Local node modules (regenerable from package.json)
+node_modules/
+
+# Per-slide preview outputs (regenerable; only the final compiled deck is tracked)
+slide-*-preview.pptx

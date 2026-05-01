@@ -1,0 +1,81 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dinov3-trt-acceleration"
+version = "0.1.0"
+description = "DINOv3 ViT-L/16 ONNX and TensorRT acceleration research code."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "huggingface-hub>=0.25",
+  "numpy>=1.24",
+  "Pillow>=10",
+  "PyYAML>=6",
+  "socksio>=1.0",
+]
+
+[project.optional-dependencies]
+export = [
+  "torch>=2.7",
+  "onnx>=1.15",
+  "onnxruntime-gpu>=1.17",
+  "onnxsim>=0.4",
+  "safetensors>=0.4",
+  "transformers>=4.56",
+]
+trt = [
+  "cuda-python>=12.8",
+  "polygraphy>=0.49",
+  "tensorrt>=10.13",
+]
+quant = [
+  "nvidia-modelopt[onnx]>=0.43",
+]
+data = [
+  "pyarrow>=15",
+]
+dev = [
+  "pytest>=8",
+  "pytest-cov>=7",
+  "ruff>=0.6",
+  "mypy>=1.10",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+dinov3_trt = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.coverage.run]
+source = ["src"]
+branch = true
+omit = [
+  "*/__pycache__/*",
+  "*/tests/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+  "pragma: no cover",
+  "raise NotImplementedError",
+  "if __name__ == .__main__.:",
+  "if TYPE_CHECKING:",
+]
+show_missing = true
+skip_covered = false
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_unused_configs = true

@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="480" viewBox="0 0 920 480" role="img" aria-label="BF16 prefer vs FP8/INT8 partial · cosine vs latency speedup (batch 8)">
+<style>text{font-family:Arial,Helvetica,sans-serif;fill:#111827}.axis{stroke:#374151;stroke-width:1}.grid{stroke:#e5e7eb;stroke-width:1}.threshold{stroke:#9ca3af;stroke-width:1;stroke-dasharray:5,4}.threshold-label{font-size:11px;fill:#6b7280}.point-label{font-size:12px;fill:#111827;font-weight:600}.tick{font-size:12px;fill:#4b5563}.title{font-size:18px;font-weight:700}.axis-label{font-size:13px;fill:#374151}.ideal-region{fill:#bbf7d0;fill-opacity:0.35}</style>
+<rect x="0" y="0" width="920" height="480" fill="#ffffff"/>
+<text class="title" x="90" y="34">BF16 prefer vs FP8/INT8 partial · cosine vs latency speedup (batch 8)</text>
+<rect class="ideal-region" x="880.06" y="70.00" width="9.94" height="180.00"/>
+<text class="threshold-label" x="888.06" y="86.00">G2 ideal region (cos ≥ 0.99 ∧ speedup ≥ 2.20×)</text>
+<line class="axis" x1="90" y1="370" x2="890" y2="370"/>
+<line class="axis" x1="90" y1="70" x2="90" y2="370"/>
+<line class="grid" x1="90.00" y1="70" x2="90.00" y2="370"/>
+<text class="tick" x="90.00" y="388" text-anchor="middle">0.195</text>
+<line class="grid" x1="189.38" y1="70" x2="189.38" y2="370"/>
+<text class="tick" x="189.38" y="388" text-anchor="middle">0.295</text>
+<line class="grid" x1="288.76" y1="70" x2="288.76" y2="370"/>
+<text class="tick" x="288.76" y="388" text-anchor="middle">0.395</text>
+<line class="grid" x1="388.14" y1="70" x2="388.14" y2="370"/>
+<text class="tick" x="388.14" y="388" text-anchor="middle">0.495</text>
+<line class="grid" x1="487.52" y1="70" x2="487.52" y2="370"/>
+<text class="tick" x="487.52" y="388" text-anchor="middle">0.595</text>
+<line class="grid" x1="586.89" y1="70" x2="586.89" y2="370"/>
+<text class="tick" x="586.89" y="388" text-anchor="middle">0.695</text>
+<line class="grid" x1="686.27" y1="70" x2="686.27" y2="370"/>
+<text class="tick" x="686.27" y="388" text-anchor="middle">0.795</text>
+<line class="grid" x1="785.65" y1="70" x2="785.65" y2="370"/>
+<text class="tick" x="785.65" y="388" text-anchor="middle">0.895</text>
+<line class="grid" x1="885.03" y1="70" x2="885.03" y2="370"/>
+<text class="tick" x="885.03" y="388" text-anchor="middle">0.995</text>
+<line class="grid" x1="90" y1="370.00" x2="890" y2="370.00"/>
+<text class="tick" x="82" y="374.00" text-anchor="end">0.0×</text>
+<line class="grid" x1="90" y1="315.45" x2="890" y2="315.45"/>
+<text class="tick" x="82" y="319.45" text-anchor="end">1.0×</text>
+<line class="grid" x1="90" y1="260.91" x2="890" y2="260.91"/>
+<text class="tick" x="82" y="264.91" text-anchor="end">2.0×</text>
+<line class="grid" x1="90" y1="206.36" x2="890" y2="206.36"/>
+<text class="tick" x="82" y="210.36" text-anchor="end">3.0×</text>
+<line class="grid" x1="90" y1="151.82" x2="890" y2="151.82"/>
+<text class="tick" x="82" y="155.82" text-anchor="end">4.0×</text>
+<line class="grid" x1="90" y1="97.27" x2="890" y2="97.27"/>
+<text class="tick" x="82" y="101.27" text-anchor="end">5.0×</text>
+<line class="threshold" x1="880.06" y1="70" x2="880.06" y2="370"/>
+<line class="threshold" x1="90" y1="250.00" x2="890" y2="250.00"/>
+<text class="threshold-label" x="884.06" y="84">cos = 0.99</text>
+<text class="threshold-label" x="884.00" y="244.00" text-anchor="end">speedup = 2.2×</text>
+<circle cx="889.13" cy="216.67" r="7" fill="#16a34a" stroke="#1f2937" stroke-width="1"/>
+<text class="point-label" x="899.13" y="220.67">BF16 prefer (0.9991, 2.81×)</text>
+<circle cx="96.22" cy="113.78" r="7" fill="#475569" stroke="#1f2937" stroke-width="1"/>
+<text class="point-label" x="106.22" y="117.78">FP8 ModelOpt (default) (0.2013, 4.70×)</text>
+<circle cx="879.24" cy="303.30" r="7" fill="#dc2626" stroke="#1f2937" stroke-width="1"/>
+<text class="point-label" x="889.24" y="307.30">INT8 layers16-19 (0.9892, 1.22×)</text>
+<circle cx="885.69" cy="311.69" r="7" fill="#ea580c" stroke="#1f2937" stroke-width="1"/>
+<text class="point-label" x="895.69" y="315.69">INT8 layer19 (0.9957, 1.07×)</text>
+<circle cx="889.00" cy="312.81" r="7" fill="#9333ea" stroke="#1f2937" stroke-width="1"/>
+<text class="point-label" x="899.00" y="316.81">INT8 layer19_attention (0.9990, 1.05×)</text>
+<circle cx="889.41" cy="313.31" r="7" fill="#0891b2" stroke="#1f2937" stroke-width="1"/>
+<text class="point-label" x="899.41" y="317.31">FP8 layer19 (partial) (0.9994, 1.04×)</text>
+<circle cx="809.76" cy="179.27" r="7" fill="#d97706" stroke="#1f2937" stroke-width="1"/>
+<text class="point-label" x="819.76" y="183.27">INT8 SmoothQuant α=0.5 (0.9193, 3.50×)</text>
+<circle cx="868.21" cy="179.39" r="7" fill="#f59e0b" stroke="#1f2937" stroke-width="1"/>
+<text class="point-label" x="878.21" y="183.39">INT8 SmoothQuant α=0.7 (0.9781, 3.49×)</text>
+<circle cx="872.34" cy="180.40" r="7" fill="#fbbf24" stroke="#1f2937" stroke-width="1"/>
+<text class="point-label" x="882.34" y="184.40">INT8 SmoothQuant α=0.8 (0.9822, 3.48×)</text>
+<circle cx="874.28" cy="238.44" r="7" fill="#65a30d" stroke="#1f2937" stroke-width="1"/>
+<text class="point-label" x="884.28" y="242.44">INT8 SmoothQuant α=0.8 + skip 16-19 (0.9842, 2.41×)</text>
+<circle cx="872.34" cy="182.73" r="7" fill="#6b7280" stroke="#1f2937" stroke-width="1"/>
+<text class="point-label" x="882.34" y="186.73">INT8 SmoothQuant α=0.8 mixed l16-19:fp32 (0.9822, 3.43×)</text>
+<circle cx="874.28" cy="239.39" r="7" fill="#374151" stroke="#1f2937" stroke-width="1"/>
+<text class="point-label" x="884.28" y="243.39">INT8 SmoothQuant α=0.8 ONNX-stripped l16-19 (V1.2) (0.9842, 2.39×)</text>
+<text class="axis-label" x="490.00" y="456" text-anchor="middle">feat_layer_20 cosine_mean (vs FP32)</text>
+<text class="axis-label" transform="translate(22 220.00) rotate(-90)" text-anchor="middle">trtexec latency speedup vs FP32 (batch 8)</text>
+</svg>

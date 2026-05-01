@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="460" viewBox="0 0 920 460" role="img" aria-label="BF16 prefer · per-output cosine_min vs FP32 (Imagenette1000)">
+<style>text{font-family:Arial,Helvetica,sans-serif;fill:#111827}.axis{stroke:#374151;stroke-width:1}.grid{stroke:#e5e7eb;stroke-width:1}.bar-label{font-size:11px;fill:#374151}.legend{font-size:13px}.tick{font-size:12px;fill:#4b5563}.title{font-size:18px;font-weight:700}</style>
+<rect x="0" y="0" width="920" height="460" fill="#ffffff"/>
+<text class="title" x="78" y="34">BF16 prefer · per-output cosine_min vs FP32 (Imagenette1000)</text>
+<line class="axis" x1="78" y1="356" x2="892" y2="356"/>
+<line class="axis" x1="78" y1="62" x2="78" y2="356"/>
+<line class="grid" x1="78" y1="356.00" x2="892" y2="356.00"/>
+<text class="tick" x="68" y="360.00" text-anchor="end">0.9970</text>
+<line class="grid" x1="78" y1="282.50" x2="892" y2="282.50"/>
+<text class="tick" x="68" y="286.50" text-anchor="end">0.9978</text>
+<line class="grid" x1="78" y1="209.00" x2="892" y2="209.00"/>
+<text class="tick" x="68" y="213.00" text-anchor="end">0.9985</text>
+<line class="grid" x1="78" y1="135.50" x2="892" y2="135.50"/>
+<text class="tick" x="68" y="139.50" text-anchor="end">0.9992</text>
+<line class="grid" x1="78" y1="62.00" x2="892" y2="62.00"/>
+<text class="tick" x="68" y="66.00" text-anchor="end">1.0000</text>
+<rect x="114.75" y="68.60" width="40.00" height="287.40" fill="#2563eb" rx="2"/>
+<text class="bar-label" x="134.75" y="64.60" text-anchor="middle">0.99993</text>
+<rect x="159.75" y="72.64" width="40.00" height="283.36" fill="#dc2626" rx="2"/>
+<text class="bar-label" x="179.75" y="68.64" text-anchor="middle">0.99989</text>
+<rect x="204.75" y="74.95" width="40.00" height="281.05" fill="#16a34a" rx="2"/>
+<text class="bar-label" x="224.75" y="70.95" text-anchor="middle">0.99987</text>
+<text class="tick" x="179.75" y="380" text-anchor="middle">feat_layer_4</text>
+<rect x="318.25" y="94.97" width="40.00" height="261.03" fill="#2563eb" rx="2"/>
+<text class="bar-label" x="338.25" y="90.97" text-anchor="middle">0.99966</text>
+<rect x="363.25" y="132.96" width="40.00" height="223.04" fill="#dc2626" rx="2"/>
+<text class="bar-label" x="383.25" y="128.96" text-anchor="middle">0.99928</text>
+<rect x="408.25" y="152.69" width="40.00" height="203.31" fill="#16a34a" rx="2"/>
+<text class="bar-label" x="428.25" y="148.69" text-anchor="middle">0.99907</text>
+<text class="tick" x="383.25" y="380" text-anchor="middle">feat_layer_12</text>
+<rect x="521.75" y="165.63" width="40.00" height="190.37" fill="#2563eb" rx="2"/>
+<text class="bar-label" x="541.75" y="161.63" text-anchor="middle">0.99894</text>
+<rect x="566.75" y="219.39" width="40.00" height="136.61" fill="#dc2626" rx="2"/>
+<text class="bar-label" x="586.75" y="215.39" text-anchor="middle">0.99839</text>
+<rect x="611.75" y="198.80" width="40.00" height="157.20" fill="#16a34a" rx="2"/>
+<text class="bar-label" x="631.75" y="194.80" text-anchor="middle">0.99860</text>
+<text class="tick" x="586.75" y="380" text-anchor="middle">feat_layer_16</text>
+<rect x="725.25" y="184.55" width="40.00" height="171.45" fill="#2563eb" rx="2"/>
+<text class="bar-label" x="745.25" y="180.55" text-anchor="middle">0.99875</text>
+<rect x="770.25" y="209.66" width="40.00" height="146.34" fill="#dc2626" rx="2"/>
+<text class="bar-label" x="790.25" y="205.66" text-anchor="middle">0.99849</text>
+<rect x="815.25" y="143.29" width="40.00" height="212.71" fill="#16a34a" rx="2"/>
+<text class="bar-label" x="835.25" y="139.29" text-anchor="middle">0.99917</text>
+<text class="tick" x="790.25" y="380" text-anchor="middle">feat_layer_20</text>
+<text class="tick" x="485.00" y="444" text-anchor="middle">Output binding</text>
+<text class="tick" transform="translate(18 209.00) rotate(-90)" text-anchor="middle">Cosine similarity (cosine_min)</text>
+<rect x="78" y="377" width="12" height="12" fill="#2563eb"/>
+<text class="legend" x="96" y="388">R224 (224px)</text>
+<rect x="278" y="377" width="12" height="12" fill="#dc2626"/>
+<text class="legend" x="296" y="388">R336 (336px)</text>
+<rect x="478" y="377" width="12" height="12" fill="#16a34a"/>
+<text class="legend" x="496" y="388">R518 (518px)</text>
+</svg>

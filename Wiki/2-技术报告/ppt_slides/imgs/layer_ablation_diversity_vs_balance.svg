@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="460" viewBox="0 0 720 460" role="img" aria-label="4-layer ablation: diversity vs magnitude balance (Imagenette eval 1000, R224)">
+<style>text{font-family:Arial,Helvetica,sans-serif;fill:#111827}.axis{stroke:#374151;stroke-width:1}.grid{stroke:#e5e7eb;stroke-width:1}.tick{font-size:12px;fill:#4b5563}.title{font-size:18px;font-weight:700}.axis-label{font-size:13px;fill:#374151}.point-label{font-size:12px;fill:#111827;font-weight:600}.sub{font-size:11px;fill:#6b7280}.sweet-region{fill:#bbf7d0;fill-opacity:0.3}</style>
+<rect x="0" y="0" width="720" height="460" fill="#ffffff"/>
+<text class="title" x="90" y="34">4-layer ablation: diversity vs magnitude balance (Imagenette eval 1000, R224)</text>
+<text class="sub" x="90" y="52">lower-left = more diverse + better magnitude balance</text>
+<line class="axis" x1="90" y1="350" x2="680" y2="350"/>
+<line class="axis" x1="90" y1="70" x2="90" y2="350"/>
+<line class="grid" x1="90.02" y1="70" x2="90.02" y2="350"/>
+<text class="tick" x="90.02" y="368" text-anchor="middle">0.25</text>
+<line class="grid" x1="154.22" y1="70" x2="154.22" y2="350"/>
+<text class="tick" x="154.22" y="368" text-anchor="middle">0.27</text>
+<line class="grid" x1="218.42" y1="70" x2="218.42" y2="350"/>
+<text class="tick" x="218.42" y="368" text-anchor="middle">0.29</text>
+<line class="grid" x1="282.62" y1="70" x2="282.62" y2="350"/>
+<text class="tick" x="282.62" y="368" text-anchor="middle">0.31</text>
+<line class="grid" x1="346.82" y1="70" x2="346.82" y2="350"/>
+<text class="tick" x="346.82" y="368" text-anchor="middle">0.33</text>
+<line class="grid" x1="411.02" y1="70" x2="411.02" y2="350"/>
+<text class="tick" x="411.02" y="368" text-anchor="middle">0.35</text>
+<line class="grid" x1="475.22" y1="70" x2="475.22" y2="350"/>
+<text class="tick" x="475.22" y="368" text-anchor="middle">0.37</text>
+<line class="grid" x1="539.42" y1="70" x2="539.42" y2="350"/>
+<text class="tick" x="539.42" y="368" text-anchor="middle">0.39</text>
+<line class="grid" x1="603.62" y1="70" x2="603.62" y2="350"/>
+<text class="tick" x="603.62" y="368" text-anchor="middle">0.41</text>
+<line class="grid" x1="667.82" y1="70" x2="667.82" y2="350"/>
+<text class="tick" x="667.82" y="368" text-anchor="middle">0.43</text>
+<line class="grid" x1="90" y1="530.63" x2="680" y2="530.63"/>
+<text class="tick" x="82" y="534.63" text-anchor="end">1×</text>
+<line class="grid" x1="90" y1="318.55" x2="680" y2="318.55"/>
+<text class="tick" x="82" y="322.55" text-anchor="end">10×</text>
+<line class="grid" x1="90" y1="106.46" x2="680" y2="106.46"/>
+<text class="tick" x="82" y="110.46" text-anchor="end">100×</text>
+<line class="grid" x1="90" y1="-105.62" x2="680" y2="-105.62"/>
+<text class="tick" x="82" y="-101.62" text-anchor="end">1000×</text>
+<circle cx="250.50" cy="211.70" r="9" fill="#059669" stroke="#ffffff" stroke-width="2"/>
+<text class="point-label" x="262.50" y="215.70">dpt L5/11/17/23</text>
+<text class="sub" x="262.50" y="230.70">cos 0.299, mag-ratio 31.9×</text>
+<circle cx="380.41" cy="122.50" r="9" fill="#dc2626" stroke="#ffffff" stroke-width="2"/>
+<text class="point-label" x="392.41" y="126.50">late L6/12/18/24</text>
+<text class="sub" x="392.41" y="141.50">cos 0.339, mag-ratio 84.0×</text>
+<circle cx="519.50" cy="297.50" r="9" fill="#2563eb" stroke="#ffffff" stroke-width="2"/>
+<text class="point-label" x="531.50" y="301.50">project L4/12/16/20</text>
+<text class="sub" x="531.50" y="316.50">cos 0.383, mag-ratio 12.6×</text>
+<text class="axis-label" x="385.00" y="400" text-anchor="middle">mean inter-output cosine (lower = more diverse, better)</text>
+<text class="axis-label" transform="rotate(-90 30 210.00)" x="30" y="210.00" text-anchor="middle">max/min magnitude ratio (log10, lower = balanced)</text>
+</svg>

@@ -1,0 +1,69 @@
+# --- Local-only files ---
+CLAUDE_PRIVATE.md
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+
+# --- Notebooks ---
+.ipynb_checkpoints/
+
+# --- ML / Model artifacts ---
+Artifacts/
+artifacts/
+*.pth
+*.pt
+*.bin
+*.safetensors
+*.onnx
+*.engine
+*.plan
+*.trt
+*.cache
+calibration/
+checkpoints/
+engines/
+weights/
+reports/
+
+# --- Build / C++ ---
+build/
+cmake-build-*/
+*.o
+*.so
+*.dylib
+*.a
+*.exe
+CMakeCache.txt
+CMakeFiles/
+
+# --- IDE / Editor ---
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# --- Logs / Reports (artifacts, not source) ---
+*.log
+runs/
+wandb/
+mlruns/
+tensorboard/
+
+# --- Datasets (do not commit large data) ---
+data/
+datasets/
+*.tar
+*.tar.gz
+*.zip
+Code/.coverage
+
+# --- Third-party Claude skills (per-developer install; CC BY-NC 4.0) ---
+.claude/skills/academic-research-skills/
