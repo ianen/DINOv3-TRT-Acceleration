@@ -41,10 +41,10 @@ class Logger : public nvinfer1::ILogger {
 }
 
 constexpr const char* kInputName = "pixel_values";
-constexpr int kImageSize = 224;
 constexpr int kHidden = 1024;
 constexpr int kPatchSize = 16;
 constexpr int kOutputs = 4;
+// kImageSize replaced with runtime-configurable image_size below.
 constexpr const char* kOutputNames[kOutputs] = {
     "feat_layer_4", "feat_layer_12", "feat_layer_16", "feat_layer_20"};
 
@@ -57,7 +57,7 @@ struct ContextState {
   std::size_t output_bytes{0};
 };
 
-bool init_context(ContextState& st, nvinfer1::ICudaEngine& engine, int batch) {
+bool init_context(ContextState& st, nvinfer1::ICudaEngine& engine, int batch, int image_size) {
   st.ctx.reset(engine.createExecutionContext());
   if (!st.ctx) {
     std::cerr << "createExecutionContext failed\n";
@@ -67,16 +67,16 @@ bool init_context(ContextState& st, nvinfer1::ICudaEngine& engine, int batch) {
     std::cerr << "cudaStreamCreate failed\n";
     return false;
   }
-  const int grid = kImageSize / kPatchSize;
+  const int grid = image_size / kPatchSize;
   const int tokens = 1 + grid * grid;
-  st.input_bytes = static_cast<std::size_t>(batch) * 3 * kImageSize * kImageSize * sizeof(float);
+  st.input_bytes = static_cast<std::size_t>(batch) * 3 * image_size * image_size * sizeof(float);
   st.output_bytes = static_cast<std::size_t>(batch) * tokens * kHidden * sizeof(float);
   if (cudaMalloc(&st.d_input, st.input_bytes) != cudaSuccess) return false;
   for (int i = 0; i < kOutputs; ++i) {
     if (cudaMalloc(&st.d_outputs[i], st.output_bytes) != cudaSuccess) return false;
   }
   // Set input shape + tensor addresses.
-  nvinfer1::Dims4 dims{batch, 3, kImageSize, kImageSize};
+  nvinfer1::Dims4 dims{batch, 3, image_size, image_size};
   if (!st.ctx->setInputShape(kInputName, dims)) {
     std::cerr << "setInputShape failed\n";
     return false;
@@ -101,12 +101,18 @@ void teardown_context(ContextState& st) {
 
 int main(int argc, char** argv) {
   if (argc < 2) {
-    std::cerr << "usage: test_concurrent_contexts <engine_path> [iterations=20]\n";
+    std::cerr << "usage: test_concurrent_contexts <engine_path> [iterations=20] [n_contexts=2] [batch=1] [image_size=224]\n";
     return 2;
   }
   const std::string engine_path = argv[1];
   const int iters = (argc >= 3) ? std::atoi(argv[2]) : 20;
-  const int batch = 1;
+  const int n_ctx = (argc >= 4) ? std::atoi(argv[3]) : 2;
+  const int batch = (argc >= 5) ? std::atoi(argv[4]) : 1;
+  const int image_size_arg = (argc >= 6) ? std::atoi(argv[5]) : 224;
+  if (n_ctx < 1 || n_ctx > 16) {
+    std::cerr << "n_contexts must be in [1, 16]\n";
+    return 2;
+  }
 
   std::cerr << "[test] reading engine: " << engine_path << "\n";
   const auto blob = read_file(engine_path);
@@ -127,28 +133,26 @@ int main(int argc, char** argv) {
     std::cerr << "deserializeCudaEngine failed\n";
     return 1;
   }
-  std::cerr << "[test] engine deserialized once, creating 2 contexts...\n";
+  std::cerr << "[test] engine deserialized once, creating " << n_ctx << " contexts (batch=" << batch << ", image=" << image_size_arg << ")...\n";
 
-  ContextState ctx[2];
-  for (int i = 0; i < 2; ++i) {
-    if (!init_context(ctx[i], *engine, batch)) {
+  std::vector<ContextState> ctx(static_cast<std::size_t>(n_ctx));
+  for (int i = 0; i < n_ctx; ++i) {
+    if (!init_context(ctx[i], *engine, batch, image_size_arg)) {
       std::cerr << "init_context " << i << " failed\n";
       return 1;
     }
   }
-  std::cerr << "[test] both contexts initialized; warming up sequentially...\n";
+  std::cerr << "[test] all " << n_ctx << " contexts initialized; warming up sequentially...\n";
 
-  // Sequential warmup
-  for (int i = 0; i < 2; ++i) {
+  for (int i = 0; i < n_ctx; ++i) {
     if (!ctx[i].ctx->enqueueV3(ctx[i].stream)) {
       std::cerr << "warmup enqueueV3 ctx " << i << " failed\n";
       return 1;
     }
     cudaStreamSynchronize(ctx[i].stream);
   }
-  std::cerr << "[test] sequential warmup OK; launching concurrent threads...\n";
+  std::cerr << "[test] sequential warmup OK; launching " << n_ctx << " concurrent threads...\n";
 
-  // Now the real test — 2 threads, each running iters enqueueV3 on its own context+stream.
   std::atomic<int> errors{0};
   auto worker = [&](int idx) {
     for (int it = 0; it < iters; ++it) {
@@ -165,25 +169,28 @@ int main(int argc, char** argv) {
     }
   };
   const auto t0 = std::chrono::steady_clock::now();
-  std::thread tA(worker, 0), tB(worker, 1);
-  tA.join();
-  tB.join();
+  std::vector<std::thread> threads;
+  threads.reserve(static_cast<std::size_t>(n_ctx));
+  for (int i = 0; i < n_ctx; ++i) threads.emplace_back(worker, i);
+  for (auto& t : threads) t.join();
   const auto t1 = std::chrono::steady_clock::now();
   const double wall_s = std::chrono::duration<double>(t1 - t0).count();
 
-  for (int i = 0; i < 2; ++i) teardown_context(ctx[i]);
+  for (int i = 0; i < n_ctx; ++i) teardown_context(ctx[i]);
 
   if (errors.load() > 0) {
     std::cerr << "[test] FAIL: " << errors.load() << " concurrent enqueueV3 errors\n";
     return 1;
   }
-  const double total_inferences = static_cast<double>(iters) * 2.0;
+  const double total_inferences = static_cast<double>(iters) * static_cast<double>(n_ctx) * static_cast<double>(batch);
   const double agg_qps = total_inferences / wall_s;
   std::cout << "{\n";
   std::cout << "  \"verdict\": \"PASS\",\n";
-  std::cout << "  \"shared_engine_concurrent_n2_works\": true,\n";
+  std::cout << "  \"shared_engine_concurrent_works\": true,\n";
   std::cout << "  \"iters_per_thread\": " << iters << ",\n";
-  std::cout << "  \"threads\": 2,\n";
+  std::cout << "  \"n_contexts\": " << n_ctx << ",\n";
+  std::cout << "  \"batch_size\": " << batch << ",\n";
+  std::cout << "  \"image_size\": " << image_size_arg << ",\n";
   std::cout << "  \"wall_seconds\": " << wall_s << ",\n";
   std::cout << "  \"aggregate_qps\": " << agg_qps << "\n";
   std::cout << "}\n";
