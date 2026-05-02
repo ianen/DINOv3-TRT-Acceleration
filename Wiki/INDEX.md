@@ -17,6 +17,7 @@
 | `项目计划报告_V1.0.0.md` | **Superseded** | V1.0.0 初版项目计划（已被 V1.0.1 修订替代） |
 | `项目计划报告_V1.0.1.md` | **Frozen** | V1.0.1 修订版主计划 + ADR-001~009（含 Token 序列结构 / RoPE 处理 / TRT 版本锁定等关键架构决策） |
 | `项目计划报告_V1.0.2.md` | **Proposed** | V1.0.2 主计划：runtime mechanics + sparsity + custom kernels；旗舰目标 5.0× cpp r518 b8（实测 envelope 3.45× — V1.0.2 系统性论证 PTQ 路径已穷尽） |
+| `项目计划报告_V1.0.3.md` | **In-Progress** | V1.0.3 主计划：throughput-oriented serving (Triton + C++ pool) + 全 GPU 利用率 (G7 SMART 目标) — G7 utilization 4 regime ✅; G1/G2/G3 throughput 双 user-blocker (Docker for ADR-019 + TRT 10.16 for ADR-020) |
 | `项目计划报告_对外.md` | Frozen | 对外简版项目计划 |
 | `ADR-010-V1.2-ONNX-Q-DQ-stripping_2026-05-01.md` | **Implemented · Negative result** | V1.2 ONNX 层 Q/DQ stripping 设计 + 实施 + 实测结论（第 25 轮闭合） |
 | `ADR-011-V1.3-QAT-future-work_2026-05-01.md` | **Proposed** | V1.3 QAT 量化感知 fine-tuning 设计文档 + 4 条启动门槛（第 27 轮新增，未实施） |
@@ -27,6 +28,9 @@
 | `ADR-016-V1.0.2-2to4-Structured-Sparsity_2026-05-02.md` | **Implemented · Negative** | 2:4 structured sparsity 实施 + 完整 ablation k∈{1,2,4,8,12,16,20,24}+ block 19 reverse 假说全部 FAIL；仅 block 0 single-block PASS（1/24 网络贡献 ~0% latency）。 |
 | `ADR-017-V1.0.2-FP8-Refined-Scaling_2026-05-02.md` | **Confirmed · Negative** | FP8 ModelOpt PTQ 在 TRT 10.13.2.6 + Blackwell sm_120 上 cos_min 0.1299 catastrophic FAIL；同 ADR-010 INT8 / ADR-016 sparsity 同 root-cause precision wall。 |
 | `ADR-018-V1.0.2-Custom-Fused-Attention-Kernel_2026-05-02.md` | **Gated-PASS · Limited-ROI** | Custom CUDA fused attention kernel；trtexec --exportProfile 实证 attention 占 26.4% (gating ≥ 20% PASS) 但 ROI 上限 ~7%（TRT Myelin 已 fuse 部分），4 周研究级工作 ROI 不足。 |
+| `ADR-019-V1.0.3-Triton-Inference-Server_2026-05-02.md` | **Parked**（user-blocker）| Triton Inference Server 集成 (V1.0.3 §4.1 主推) — Windows host 缺 Docker/WSL2, 提供 3 unblock paths (A install Docker / B cloud Linux GPU / C skip), 默认 C 直到 user 选 A/B |
+| `ADR-020-V1.0.3-CPP-Multi-Context-Pool_2026-05-02.md` | **Implemented Phase 1 · Blocked** | C++ TRTInfererPool 完整设计 + Phase 1 实现 (per-slot TRTInferer + counting_semaphore + per-slot mutex), Windows MSVC 2022 build clean, N=1 single-thread ✅, concurrent N=2 ❌ TRT 10.13 Myelin runner.cpp:778 thread-safety blocker (V1.0.3 §8 Risk #2 实证 materialize) |
+| `ADR-023-V1.0.3-TRT-LLM-vLLM-Inapplicability_2026-05-02.md` | **Confirmed-Negative** | TRT-LLM/vLLM 与 ViT pure encoder 不适用论证 (paper §7 future-work 引用素材) — TRT-LLM 90% LLM-decode-specific, vLLM 唯一适用项 (CUDA Graph for ViT) 已被 V1.0.2 ADR-012 覆盖 |
 | `V1.3_QAT_launch_threshold_evaluation_2026-05-01.md` | **Actionable evaluation** | V1.3 QAT 4 条启动门槛逐条评估 — 难度排序 / 推荐先满足路径 / 启动决策树（不启动 / 仅 V1.3 / +workshop paper / +full conference paper 4 选项 + 成本估算） |
 | `imagenet_403_workaround_manual_2026-05-01.md` | **Actionable manual V1.0.1** | ImageNet 403 GatedRepoError unblock 完整手册（第 50 轮 V1.0.1 修订）— 兼容 Kaggle 新 KGAT_/access_token + legacy kaggle.json 双格式 + 修正 dataset slug `titericz/imagenet1k-val` + Kaggle CLI 已 install + kagglehub 1.0.1 已 install + user 配置步骤（5 min）+ pkg 升级路径 + ImageNet val 50K 替换 cosine eval 一键命令 |
 | `milestones/M1-progress.md` | **Live** | 持续推进记录（**67+ 轮心跳 V1.0.1 + V1.0.2 持续推进**）；含每轮诊断、改动、远端实验、文档同步、剩余未做 |
@@ -72,6 +76,8 @@
 | `M1-正式结果摘要_2026-04-30.md` | Frozen（V1.0.0 主线快照） | V1.0.0 主线正式结果数据快照 |
 | `M1-M6-当前验收矩阵_2026-04-30.md` | **Frozen（V1.0.0 主线 G1-G5 闭合状态）** | V1.0.0 主线验收矩阵（G1-G5 + M1-M7 状态对照表） |
 | `V1.1-stretch-summary_2026-05-01.md` | **Live（V1.1 + V1.2 综合）** | V1.1 stretch 6 轮 + V1.2 实施综合表 + ADR-011 引用 + V1.1 期总产物增量 |
+| `V1.0.3-first-G7-datapoint_2026-05-02.md` | **Live（V1.0.3 G7 4-regime 闭合）** | r518 b8 99.08% / r336 b8 96.39% / r224 b1 N=1 88.24% / r224 b1 N=2 95.77% — BF16 dense path 三档 regime 全部接近 saturation；V1.3 QAT motivation 量化数据基础 |
+| `V1.0.3-implementation-status_2026-05-02.md` | **Live（V1.0.3 mid-impl status snapshot）** | TL;DR + Goal Progress + ADR Status + 今日 builds + measurements + 5 大决策记录 + Open user-side decisions（Path A/B/C for ADR-019 + TRT 10.16 upgrade for ADR-020）|
 
 ## 代码与实验产物（`Code/Artifacts/`）
 
