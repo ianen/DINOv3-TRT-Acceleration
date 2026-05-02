@@ -39,7 +39,19 @@ param(
     [int]$IntervalMs = 100,
 
     [Parameter(Mandatory = $false)]
-    [int]$WarmupSkipSeconds = 1
+    [int]$WarmupSkipSeconds = 1,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$EnableNcu,
+
+    [Parameter(Mandatory = $false)]
+    [int]$NcuLaunchSkip = 5,
+
+    [Parameter(Mandatory = $false)]
+    [int]$NcuLaunchCount = 10,
+
+    [Parameter(Mandatory = $false)]
+    [string]$NcuExe = "C:\Program Files\NVIDIA Corporation\Nsight Compute 2025.2.1\ncu.bat"
 )
 
 # V1.0.3 ADR-015/019/020 共用 — runs benchmark_multi_stream.py while
@@ -184,6 +196,62 @@ $meta = [pscustomobject]@{
     benchmark_exit_code = $benchProc.ExitCode
 }
 $meta | ConvertTo-Json -Depth 4 | Set-Content -Path $metaJson -Encoding utf8
+
+# Optional: ncu Tensor Core / SM throughput per-kernel sampling.
+# ncu profiles a short inference burst SEPARATELY from the benchmark
+# (ncu's own kernel replay overhead would distort throughput numbers if
+# folded into the main benchmark window). Output goes to ncu_metrics.txt
+# in the same run dir, where aggregate_utilization.py picks it up to fill
+# the tensor_core_pct column.
+if ($EnableNcu) {
+    $ncuOut = Join-Path $runDir "ncu_metrics.txt"
+    if (-not (Test-Path -LiteralPath $NcuExe)) {
+        Write-Warning "[v103_runner] -EnableNcu set but ncu not found: $NcuExe"
+    }
+    else {
+        $ncuMetrics = @(
+            "sm__throughput.avg.pct_of_peak_sustained_elapsed",
+            "sm__pipe_tensor_op_hmma_cycles_active.avg.pct_of_peak_sustained_elapsed",
+            "dram__throughput.avg.pct_of_peak_sustained_elapsed",
+            "lts__t_sectors_aperture_device_op_read.sum",
+            "l1tex__t_bytes.sum"
+        ) -join ","
+
+        # ncu profiles a single short burst of pool_benchmark to capture
+        # per-kernel metrics without affecting the throughput run.
+        $poolBench = Join-Path $CodeDir "build\cpp-trt-inspect-msvc\dinov3_trt_pool_benchmark.exe"
+        if (-not (Test-Path -LiteralPath $poolBench)) {
+            Write-Warning "[v103_runner] pool_benchmark.exe not found; ncu profiling skipped: $poolBench"
+        }
+        else {
+            $ncuArgs = @(
+                "--metrics", $ncuMetrics,
+                "--target-processes", "all",
+                "--csv",
+                "--page", "raw",
+                "--launch-skip", "$NcuLaunchSkip",
+                "--launch-count", "$NcuLaunchCount",
+                $poolBench,
+                "--engine", $resolvedEngine,
+                "--batch-size", "$BatchSize",
+                "--image-size", "$ImageSize",
+                "--num-streams", "1",
+                "--threads", "1",
+                "--warmup", "5",
+                "--iters", "20",
+                "--no-graphs"
+            )
+            Write-Host "[v103_runner] ncu profiling pool_benchmark single-context for Tensor Core metrics..."
+            try {
+                & $NcuExe @ncuArgs *>&1 | Set-Content -Path $ncuOut -Encoding utf8
+                Write-Host "[v103_runner] ncu output -> $ncuOut"
+            }
+            catch {
+                Write-Warning "[v103_runner] ncu profiling failed: $($_.Exception.Message)"
+            }
+        }
+    }
+}
 
 # Aggregate utilization -> append row to V1.0.3 §10.3 CSV.
 $runDir = Join-Path $resolvedUtilDir $runId
