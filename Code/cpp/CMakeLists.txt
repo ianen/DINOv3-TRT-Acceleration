@@ -60,6 +60,9 @@ if(DINOV3_TRT_CPP_ENABLE_TENSORRT)
     STATIC
       src/engine_inspector.cpp
       src/trt_inferer.cpp
+      # V1.0.2 ADR-012: pinned host memory + CUDA Graph capture/replay.
+      src/pinned_buffer.cpp
+      src/cuda_graph_pool.cpp
   )
   target_link_libraries(dinov3_trt_cpp_tensorrt PUBLIC dinov3_trt_cpp)
   target_include_directories(

@@ -203,3 +203,194 @@ def test_int8_precision_without_layer_overrides_emits_no_constraint_flag() -> No
     assert "--int8" in command
     assert not any(part.startswith("--precisionConstraints=") for part in command)
     assert not any(part.startswith("--layerPrecisions=") for part in command)
+
+
+# =============================================================================
+# V1.0.2 ADR-013: persistent timing cache + multi optimization profiles
+# =============================================================================
+
+
+def test_v102_default_has_no_extra_profiles() -> None:
+    command = build_trtexec_command(
+        TrtExecConfig(
+            onnx_path=Path("Artifacts/onnx/dinov3.onnx"),
+            engine_path=Path("Artifacts/engines/dinov3.engine"),
+            precision="bf16",
+        )
+    )
+    assert command.count("--profile") == 0
+    assert sum(1 for p in command if p.startswith("--minShapes=")) == 1
+    assert sum(1 for p in command if p.startswith("--optShapes=")) == 1
+    assert sum(1 for p in command if p.startswith("--maxShapes=")) == 1
+
+
+def test_v102_additional_profiles_emit_separators_and_extra_shape_blocks() -> None:
+    command = build_trtexec_command(
+        TrtExecConfig(
+            onnx_path=Path("Artifacts/onnx/dinov3.onnx"),
+            engine_path=Path("Artifacts/engines/dinov3.engine"),
+            precision="bf16",
+            profile=ShapeProfile(min_batch=1, opt_batch=1, max_batch=1),
+            additional_profiles=(
+                ShapeProfile(min_batch=4, opt_batch=8, max_batch=16),
+                ShapeProfile(min_batch=16, opt_batch=32, max_batch=32),
+            ),
+        )
+    )
+    # 1 base profile + 2 additional profiles = 2 ``--profile`` separators
+    assert command.count("--profile") == 2
+    # 1 base + 2 additional = 3 of each shape flag
+    assert sum(1 for p in command if p.startswith("--minShapes=")) == 3
+    assert sum(1 for p in command if p.startswith("--optShapes=")) == 3
+    assert sum(1 for p in command if p.startswith("--maxShapes=")) == 3
+    # The base profile (b=1) appears before the first ``--profile`` separator
+    first_profile_idx = command.index("--profile")
+    base_min_idx = command.index("--minShapes=pixel_values:1x3x224x224")
+    assert base_min_idx < first_profile_idx
+    # The b=4-16 profile shapes appear after the first separator
+    assert "--minShapes=pixel_values:4x3x224x224" in command[first_profile_idx:]
+    assert "--minShapes=pixel_values:16x3x224x224" in command[first_profile_idx:]
+
+
+def test_v102_additional_profile_must_match_contract_resolution() -> None:
+    bad_profile = ShapeProfile(min_batch=1, opt_batch=4, max_batch=8, height=336, width=336)
+    with pytest.raises(ValueError, match="additional profile"):
+        TrtExecConfig(
+            onnx_path=Path("Artifacts/onnx/dinov3.onnx"),
+            engine_path=Path("Artifacts/engines/dinov3.engine"),
+            precision="bf16",
+            additional_profiles=(bad_profile,),
+        )
+
+
+def test_v102_builder_optimization_level_emitted_when_set() -> None:
+    command = build_trtexec_command(
+        TrtExecConfig(
+            onnx_path=Path("Artifacts/onnx/dinov3.onnx"),
+            engine_path=Path("Artifacts/engines/dinov3.engine"),
+            precision="bf16",
+            builder_optimization_level=5,
+        )
+    )
+    assert "--builderOptimizationLevel=5" in command
+
+
+def test_v102_builder_optimization_level_default_omitted() -> None:
+    command = build_trtexec_command(
+        TrtExecConfig(
+            onnx_path=Path("Artifacts/onnx/dinov3.onnx"),
+            engine_path=Path("Artifacts/engines/dinov3.engine"),
+            precision="bf16",
+        )
+    )
+    assert not any(p.startswith("--builderOptimizationLevel=") for p in command)
+
+
+def test_v102_builder_optimization_level_must_be_in_range() -> None:
+    with pytest.raises(ValueError, match=r"\[0, 5\]"):
+        TrtExecConfig(
+            onnx_path=Path("Artifacts/onnx/dinov3.onnx"),
+            engine_path=Path("Artifacts/engines/dinov3.engine"),
+            precision="bf16",
+            builder_optimization_level=6,
+        )
+    with pytest.raises(ValueError, match=r"\[0, 5\]"):
+        TrtExecConfig(
+            onnx_path=Path("Artifacts/onnx/dinov3.onnx"),
+            engine_path=Path("Artifacts/engines/dinov3.engine"),
+            precision="bf16",
+            builder_optimization_level=-1,
+        )
+
+
+def test_v102_persistent_cache_size_emitted_when_set() -> None:
+    command = build_trtexec_command(
+        TrtExecConfig(
+            onnx_path=Path("Artifacts/onnx/dinov3.onnx"),
+            engine_path=Path("Artifacts/engines/dinov3.engine"),
+            precision="bf16",
+            persistent_cache_size_mb=64,
+        )
+    )
+    assert "--persistentCacheSize=64" in command
+
+
+def test_v102_persistent_cache_size_default_omitted() -> None:
+    command = build_trtexec_command(
+        TrtExecConfig(
+            onnx_path=Path("Artifacts/onnx/dinov3.onnx"),
+            engine_path=Path("Artifacts/engines/dinov3.engine"),
+            precision="bf16",
+        )
+    )
+    assert not any(p.startswith("--persistentCacheSize=") for p in command)
+
+
+def test_v102_persistent_cache_size_rejects_negative() -> None:
+    with pytest.raises(ValueError, match="non-negative"):
+        TrtExecConfig(
+            onnx_path=Path("Artifacts/onnx/dinov3.onnx"),
+            engine_path=Path("Artifacts/engines/dinov3.engine"),
+            precision="bf16",
+            persistent_cache_size_mb=-1,
+        )
+
+
+# =============================================================================
+# V1.0.2 ADR-016: 2:4 structured sparsity flag
+# =============================================================================
+
+
+def test_v102_sparsity_flag_emitted_when_enabled() -> None:
+    command = build_trtexec_command(
+        TrtExecConfig(
+            onnx_path=Path("Artifacts/onnx/dinov3.sparse.onnx"),
+            engine_path=Path("Artifacts/engines/dinov3.sparse.engine"),
+            precision="bf16",
+            enable_sparsity=True,
+        )
+    )
+    assert "--sparsity=enable" in command
+
+
+def test_v102_sparsity_flag_omitted_by_default() -> None:
+    command = build_trtexec_command(
+        TrtExecConfig(
+            onnx_path=Path("Artifacts/onnx/dinov3.onnx"),
+            engine_path=Path("Artifacts/engines/dinov3.engine"),
+            precision="bf16",
+        )
+    )
+    assert "--sparsity=enable" not in command
+
+
+def test_v102_full_v102_config_command_ordering() -> None:
+    """Smoke test: all V1.0.2 flags together produce a valid command structure."""
+    command = build_trtexec_command(
+        TrtExecConfig(
+            onnx_path=Path("Artifacts/onnx/dinov3.onnx"),
+            engine_path=Path("Artifacts/engines/dinov3.bf16.v102.engine"),
+            precision="bf16",
+            profile=ShapeProfile(min_batch=1, opt_batch=1, max_batch=1),
+            additional_profiles=(
+                ShapeProfile(min_batch=4, opt_batch=8, max_batch=16),
+                ShapeProfile(min_batch=16, opt_batch=32, max_batch=32),
+            ),
+            timing_cache_path=Path("Artifacts/timing_cache/shared_v102.cache"),
+            builder_optimization_level=5,
+            persistent_cache_size_mb=64,
+            enable_sparsity=True,
+        )
+    )
+    # Sanity: exactly 1 trtexec, 1 onnx, 1 saveEngine, 3 of each shape flag,
+    # 2 ``--profile`` separators, BF16 selected, all V1.0.2 flags present.
+    assert command[0] == "trtexec"
+    assert sum(1 for p in command if p.startswith("--onnx=")) == 1
+    assert sum(1 for p in command if p.startswith("--saveEngine=")) == 1
+    assert command.count("--profile") == 2
+    assert sum(1 for p in command if p.startswith("--minShapes=")) == 3
+    assert "--bf16" in command
+    assert "--builderOptimizationLevel=5" in command
+    assert "--persistentCacheSize=64" in command
+    assert "--sparsity=enable" in command
+    assert any(p.startswith("--timingCacheFile=") for p in command)

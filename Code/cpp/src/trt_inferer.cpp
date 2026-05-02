@@ -5,6 +5,7 @@
 
 #include <array>
 #include <cstdint>
+#include <cstdlib>
 #include <exception>
 #include <fstream>
 #include <iostream>
@@ -14,6 +15,8 @@
 #include <string>
 #include <utility>
 #include <vector>
+
+#include "dinov3_trt/cuda_graph_pool.h"
 
 namespace dinov3_trt {
 namespace {
@@ -200,14 +203,34 @@ class DeviceBuffer {
 
 }  // namespace
 
+// V1.0.2 ADR-012 helper: read the DINOV3_USE_CUDA_GRAPH env var once.
+//
+// Returns true (default) when the var is unset or set to anything other than
+// the literal string "0". Setting it to "0" disables CUDA Graph capture and
+// falls back to the V1.0.1 sequential enqueueV3 path. The fallback is bit-
+// exact with V1.0.1 and serves as the regression baseline.
+[[nodiscard]] inline bool read_use_cuda_graph_env() noexcept {
+  const char* env = std::getenv("DINOV3_USE_CUDA_GRAPH");
+  if (env == nullptr) {
+    return true;
+  }
+  return std::string{env} != "0";
+}
+
 class TRTInferer::Impl {
  public:
   Impl(std::string engine_path, int device_id)
-      : engine_path_(std::move(engine_path)), device_id_(device_id) {
+      : engine_path_(std::move(engine_path)),
+        device_id_(device_id),
+        use_cuda_graph_(read_use_cuda_graph_env()) {
     init_status_ = initialize();
   }
 
   ~Impl() {
+    // Drop graph executables before destroying the stream they were captured
+    // on; cudaGraphExecDestroy is documented to be valid even with a torn-
+    // down stream, but ordering avoids any spurious driver warnings.
+    graph_pool_.clear();
     if (stream_ != nullptr) {
       static_cast<void>(cudaStreamDestroy(stream_));
     }
@@ -277,8 +300,59 @@ class TRTInferer::Impl {
         return status;
       }
 
-      if (!context_->enqueueV3(stream_)) {
-        return Status::runtime_error("TensorRT enqueueV3 failed");
+      // V1.0.2 ADR-012: capture the GPU-side enqueueV3 in a CUDA Graph so
+      // subsequent calls with the same (batch, resolution) pay zero kernel-
+      // launch overhead. H2D/D2H stay per-call because callers control those
+      // host pointers and they vary; pinned staging is a V1.0.2 follow-up.
+      //
+      // Per TRT 10 user guide §10.x the canonical pattern is:
+      //   1. enqueueV3 once outside capture (warm-up to populate context)
+      //   2. cudaStreamBeginCapture
+      //   3. enqueueV3 again (this is captured)
+      //   4. cudaStreamEndCapture + cudaGraphInstantiate
+      //   5. cudaGraphLaunch on subsequent calls
+      const GraphKey graph_key{
+          static_cast<int>(input.shape.dims[0]),
+          input_image_size};
+      if (use_cuda_graph_) {
+        cudaGraphExec_t exec = graph_pool_.get(graph_key);
+        if (exec == nullptr) {
+          // Cold path: warm-up once before capture (TRT may JIT internal
+          // structures on first enqueueV3 for a new shape) then capture.
+          if (!context_->enqueueV3(stream_)) {
+            return Status::runtime_error("TensorRT enqueueV3 (warm-up) failed");
+          }
+          status = cuda_status(
+              cudaStreamSynchronize(stream_),
+              "cudaStreamSynchronize(warm-up)");
+          if (!status.is_ok()) {
+            return status;
+          }
+          status = graph_pool_.capture_and_insert(
+              graph_key,
+              stream_,
+              [&](cudaStream_t capture_stream) -> Status {
+                if (!context_->enqueueV3(capture_stream)) {
+                  return Status::runtime_error(
+                      "TensorRT enqueueV3 (capture) failed");
+                }
+                return Status::ok();
+              },
+              exec);
+          if (!status.is_ok()) {
+            return status;
+          }
+        }
+        status = cuda_status(
+            cudaGraphLaunch(exec, stream_), "cudaGraphLaunch");
+        if (!status.is_ok()) {
+          return status;
+        }
+      } else {
+        // V1.0.1 legacy path (DINOV3_USE_CUDA_GRAPH=0): direct enqueue.
+        if (!context_->enqueueV3(stream_)) {
+          return Status::runtime_error("TensorRT enqueueV3 failed");
+        }
       }
 
       for (std::size_t index = 0; index < output_buffers_.size(); ++index) {
@@ -348,6 +422,13 @@ class TRTInferer::Impl {
   DeviceBuffer input_buffer_;
   std::array<DeviceBuffer, kOutputCount> output_buffers_;
   cudaStream_t stream_{nullptr};
+  // V1.0.2 ADR-012: CUDA Graph capture/replay pool keyed by (batch, resolution).
+  // Default size 6 covers 2 resolutions × 3 batch sizes which is the typical
+  // V1.0.1 benchmark working set.
+  CudaGraphPool graph_pool_{6};
+  // Cached at construction from DINOV3_USE_CUDA_GRAPH env var; setting to "0"
+  // forces the V1.0.1 sequential enqueueV3 fallback for regression testing.
+  bool use_cuda_graph_{true};
 };
 
 TRTInferer::TRTInferer(std::string engine_path, int device_id)
