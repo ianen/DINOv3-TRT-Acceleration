@@ -135,7 +135,7 @@ ssh windows-pc 'cmd /c "type D:\WorkPlace\ZMP\DINOv3-TRT-Acceleration\<log>.log"
 ## 仓库
 
 - **远程**：`git@github.com:ianen/DINOv3-TRT-Acceleration.git`
-- **当前阶段**：**V1.0.0 + V1.1 stretch + V1.2 mixed-precision + V1.3 future work 全部决策树就位**（项目计划 V1.0.1 + 第 14-28 轮心跳）。
+- **当前阶段**：**V1.0.1 frozen (67 轮心跳闭合) + V1.0.2 系统性 PTQ precision wall 论证 (实证 envelope 3.45×, 5.0× 旗舰 unreachable on TRT 10.13.2.6) + V1.3 QAT 启动门槛 1/4 满足**（V1.0.1 67 轮 + V1.0.2 持续推进，V1.0.2 全 7 ADRs 评估完毕）。
   - **G1 低精度加速**：候选改为 **BF16 prefer**（FP16 在正式权重下输出 NaN，是负例）。224/336/518 三档分辨率全覆盖；trtexec GPU median latency speedup 顶点 `3.86×`（r518 b8），cpp end-to-end latency speedup 顶点 `3.40×`（r518 b8）。
   - **G2 INT8**：所有路径 negative 闭合（详见 ADR-010 § 5.3 三层证据链）。SmoothQuant α=0.8 best：cos_mean 0.982 / cos_min 0.968 / speed 3.48× — speed ✅ / cos ❌。三种 mixed-precision 工具链（V1.1 ModelOpt skip / V1.1 trtexec layerPrecisions / V1.2 ONNX strip）等价 negative，cos_min 都在 0.97 附近。**Root cause**：前段 blocks 0-15 累积 INT8 量化噪声，末段 mixed-precision 不能 recover。V1.3 方向 = QAT（ADR-011，Proposed）。
   - **G3 Python/C++ 跨语言一致**：224/336/518 三档分辨率 × FP32/BF16 prefer batch 1 全部 **bit-identical**（`max_abs_error=0`、`cosine=1.0`），超出 V1.0.1 G3 最严档。
@@ -155,15 +155,39 @@ ssh windows-pc 'cmd /c "type D:\WorkPlace\ZMP\DINOv3-TRT-Acceleration\<log>.log"
   - `Wiki/2-技术报告/复现与许可说明_V1.0.0.md`（含双向 sync `--pull-reports` 命令）
 - **决策文档（ADR）**：
   - `Wiki/0-项目计划/项目计划报告_V1.0.1.md` ADR-001 ~ ADR-009（V1.0.1 主计划架构决策，frozen）
+  - `Wiki/0-项目计划/项目计划报告_V1.0.2.md`（V1.0.2 主计划，**Proposed**；7 ADRs 全部评估完毕）
   - `Wiki/0-项目计划/ADR-010-V1.2-ONNX-Q-DQ-stripping_2026-05-01.md`（**Implemented · Negative result**，第 25 轮）
-  - `Wiki/0-项目计划/ADR-011-V1.3-QAT-future-work_2026-05-01.md`（**Proposed**，未实施；4 条启动门槛）
+  - `Wiki/0-项目计划/ADR-011-V1.3-QAT-future-work_2026-05-01.md`（**Proposed**，未实施；4 条启动门槛 — 数据 unblock ✅ 已满足）
+  - `ADR-012-V1.0.2-CUDA-Graphs-and-Pinned-Memory_2026-05-02.md`（**Implemented · Partial**，r224 b1 1.135× / r518 b8 1.005×, bit-exact）
+  - `ADR-013-V1.0.2-Persistent-Timing-Cache-and-Multi-Profile_2026-05-02.md`（**Implemented · Mixed**，opt5 negative on r518 b8）
+  - `ADR-014-V1.0.2-TRT-10.16.1-Upgrade-Validation_2026-05-02.md`（**Proposed · user-blocked**，需 NVIDIA Developer login）
+  - `ADR-015-V1.0.2-Multi-Stream-Inference_2026-05-02.md`（**Implemented · Partial**，r224 b1 N=2 1.513× / r518 b8 GPU 饱和 1.023×）
+  - `ADR-016-V1.0.2-2to4-Structured-Sparsity_2026-05-02.md`（**Implemented · Negative**，完整 ablation 全 FAIL except block 0）
+  - `ADR-017-V1.0.2-FP8-Refined-Scaling_2026-05-02.md`（**Confirmed · Negative**，cos 0.1299 catastrophic）
+  - `ADR-018-V1.0.2-Custom-Fused-Attention-Kernel_2026-05-02.md`（**Gated-PASS · Limited-ROI**，attention 26.4% / ROI ~7%）
 - **顶层导航**：`Wiki/INDEX.md`（19 份 .md 按用途分类 + 不同 stakeholder 入口路径 + 完整决策树 + 心跳轮次索引）
 - **结果索引**：
   - `Wiki/2-实验结果/M1-M6-当前验收矩阵_2026-04-30.md`（V1.0.0 主线 frozen）
   - `Wiki/2-实验结果/V1.1-stretch-summary_2026-05-01.md`（V1.1 stretch 7 轮 + V1.2 实施 + ADR-011 引用）
   - `Wiki/0-项目计划/milestones/M1-progress.md`（**55+ 轮心跳**详细记录）
 - **同步工具**：`scripts/sync_remote_windows_repo.py` 双向（默认 push；`--pull-reports` 反向回拉文本产物）。
-- **测试与质量门**：本地 `pytest 357 passed, 3 skipped` + ruff/mypy 全绿（含 `mypy --strict`，**116 Python 源文件**）+ **line coverage 81%**（pytest-cov 已配置，跨过 V1.0.1 §12.1 ≥ 80% 阈值）；远端 Windows pytest 同步绿。`tests/test_layer_precision.py` / `test_onnx_qdq_stripper.py` / `test_onnx_qdq_strip_planner.py` / `test_trt_runtime.py` / `test_run_imagenet_val_post_download.py`（19 测覆盖 §12.1 闭合 orchestrator）等 pure-Python 与 mock-based 模块本地 macOS 可单元测试。
+- **测试与质量门**：本地 `pytest 404 passed, 3 skipped`（V1.0.1 357 + V1.0.2 +47）+ ruff/mypy 全绿（含 `mypy --strict`，**119+ Python 源文件**）+ **line coverage 81%**（pytest-cov 已配置，跨过 V1.0.1 §12.1 ≥ 80% 阈值）；远端 Windows pytest 同步绿。V1.0.2 新测：`test_trtexec.py`（+12 V1.0.2 flags）/ `test_sparsify.py`（25 测，2:4 mask gen 库）/ `test_sparsify_onnx_weights_script.py`（10 测，ONNX driver mock）/ `test_run_imagenet_val_post_download.py`（19 测覆盖 §12.1 orchestrator）等。
+
+**V1.0.2 系统性论证完成**（2026-05-02 全 ADRs 评估）：
+
+- **PTQ precision wall confirmed across 5 vectors**（除 BF16 prefer 外，INT8 / sparsity 全位置 / FP8 全部 hit 同一 root cause — 前段误差累积放大到深层 catastrophic collapse）：
+
+| 量化技术 | cos_min | Verdict |
+|---|---|---|
+| BF16 prefer (V1.0.1 主交付) | 0.9977 | ✅ R1_PASS_strict |
+| INT8 SmoothQuant α=0.8 | 0.9727 | ⚠️ R2_PASS_emergency |
+| 2:4 sparsity k=1 (block 0) | 0.9909 | ✅ R1_PASS_strict（仅 outlier 1/24 网络） |
+| 2:4 sparsity k=2-24 全部 | ≤ 0.9693 | ❌ FAIL |
+| FP8 ModelOpt PTQ | 0.1299 | ❌ catastrophic |
+
+- **V1.0.2 r518 b8 stacked envelope** = 3.45× actual / 5.0× target unreachable
+- 即使所有 stretch ADRs 完美工作 envelope 上限 ≈ 3.93-4.20×（仍不到 5.0×）
+- 唯一突破路径：**V1.3 QAT**（ADR-011 已规划；启动门槛 1/4 满足，剩 3 条需 user 资源决策）
 
 **V1.0.1 §12.1 9/9 全条款闭合**（第 67 轮 2026-05-02 达成）：
 
