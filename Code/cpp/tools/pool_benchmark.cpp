@@ -285,10 +285,15 @@ int main(int argc, char** argv) {
   }
 
   const LatencySummary agg = summarize(std::move(all_latencies));
-  const double aggregate_qps =
+  const double aggregate_calls_per_sec =
       total_wall_ms <= 0.0
           ? 0.0
           : (static_cast<double>(total_inferences) * 1000.0) / total_wall_ms;
+  // For V1.0.3 G1/G2/G3 SMART targets (which measure image-level throughput),
+  // multiply by batch_size — each pool.infer() call processes a batch of
+  // batch_size images. The "qps" in the V1.0.2 baseline 343.69 was already
+  // image-level for batch=1, so this is the apples-to-apples metric.
+  const double aggregate_qps = aggregate_calls_per_sec * static_cast<double>(args.batch_size);
 
   std::cout << std::setprecision(10);
   std::cout << "{\n";
@@ -303,6 +308,7 @@ int main(int argc, char** argv) {
             << (args.enable_cuda_graphs ? "true" : "false") << ",\n";
   std::cout << "  \"total_inferences\": " << total_inferences << ",\n";
   std::cout << "  \"total_wall_ms\": " << total_wall_ms << ",\n";
+  std::cout << "  \"aggregate_calls_per_sec\": " << aggregate_calls_per_sec << ",\n";
   std::cout << "  \"aggregate_qps\": " << aggregate_qps << ",\n";
   std::cout << "  \"latency_ms\": {\n";
   std::cout << "    \"min\": " << agg.min_ms << ",\n";
