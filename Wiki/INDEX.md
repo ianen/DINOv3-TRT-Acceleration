@@ -16,12 +16,20 @@
 |---|---|---|
 | `项目计划报告_V1.0.0.md` | **Superseded** | V1.0.0 初版项目计划（已被 V1.0.1 修订替代） |
 | `项目计划报告_V1.0.1.md` | **Frozen** | V1.0.1 修订版主计划 + ADR-001~009（含 Token 序列结构 / RoPE 处理 / TRT 版本锁定等关键架构决策） |
+| `项目计划报告_V1.0.2.md` | **Proposed** | V1.0.2 主计划：runtime mechanics + sparsity + custom kernels；旗舰目标 5.0× cpp r518 b8（实测 envelope 3.45× — V1.0.2 系统性论证 PTQ 路径已穷尽） |
 | `项目计划报告_对外.md` | Frozen | 对外简版项目计划 |
 | `ADR-010-V1.2-ONNX-Q-DQ-stripping_2026-05-01.md` | **Implemented · Negative result** | V1.2 ONNX 层 Q/DQ stripping 设计 + 实施 + 实测结论（第 25 轮闭合） |
 | `ADR-011-V1.3-QAT-future-work_2026-05-01.md` | **Proposed** | V1.3 QAT 量化感知 fine-tuning 设计文档 + 4 条启动门槛（第 27 轮新增，未实施） |
+| `ADR-012-V1.0.2-CUDA-Graphs-and-Pinned-Memory_2026-05-02.md` | **Implemented · Partial** | CUDA Graphs in C++ runtime；实测 r224 b1 1.135× speedup bit-exact，r518 b8 1.005× (compute-dominated)。Pinned staging 推迟到第二切。 |
+| `ADR-013-V1.0.2-Persistent-Timing-Cache-and-Multi-Profile_2026-05-02.md` | **Implemented · Mixed** | trtexec.py 多 profile + builder optimization level + persistent cache + sparsity flag；实测 opt level 5 在 BF16 r518 b8 上 negative（V1.0.1 已最优）；persistent cache 需 TRT 10.16+。 |
+| `ADR-014-V1.0.2-TRT-10.16.1-Upgrade-Validation_2026-05-02.md` | **Proposed**（user-blocked）| TRT 10.13.2.6 → 10.16.1 升级前置 milestone（解锁 sparsity 成熟 kernel + persistent cache）；需 user NVIDIA Developer login 下载 ~2GB 才能触发。 |
+| `ADR-015-V1.0.2-Multi-Stream-Inference_2026-05-02.md` | **Implemented · Partial** | Multi-stream concurrent inference Python wrapper；r224 b1 N=2 sweet spot 1.513× aggregate；r518 b8 GPU 饱和 multi-stream 完全无效（1.023×）。 |
+| `ADR-016-V1.0.2-2to4-Structured-Sparsity_2026-05-02.md` | **Implemented · Negative** | 2:4 structured sparsity 实施 + 完整 ablation k∈{1,2,4,8,12,16,20,24}+ block 19 reverse 假说全部 FAIL；仅 block 0 single-block PASS（1/24 网络贡献 ~0% latency）。 |
+| `ADR-017-V1.0.2-FP8-Refined-Scaling_2026-05-02.md` | **Confirmed · Negative** | FP8 ModelOpt PTQ 在 TRT 10.13.2.6 + Blackwell sm_120 上 cos_min 0.1299 catastrophic FAIL；同 ADR-010 INT8 / ADR-016 sparsity 同 root-cause precision wall。 |
+| `ADR-018-V1.0.2-Custom-Fused-Attention-Kernel_2026-05-02.md` | **Gated-PASS · Limited-ROI** | Custom CUDA fused attention kernel；trtexec --exportProfile 实证 attention 占 26.4% (gating ≥ 20% PASS) 但 ROI 上限 ~7%（TRT Myelin 已 fuse 部分），4 周研究级工作 ROI 不足。 |
 | `V1.3_QAT_launch_threshold_evaluation_2026-05-01.md` | **Actionable evaluation** | V1.3 QAT 4 条启动门槛逐条评估 — 难度排序 / 推荐先满足路径 / 启动决策树（不启动 / 仅 V1.3 / +workshop paper / +full conference paper 4 选项 + 成本估算） |
 | `imagenet_403_workaround_manual_2026-05-01.md` | **Actionable manual V1.0.1** | ImageNet 403 GatedRepoError unblock 完整手册（第 50 轮 V1.0.1 修订）— 兼容 Kaggle 新 KGAT_/access_token + legacy kaggle.json 双格式 + 修正 dataset slug `titericz/imagenet1k-val` + Kaggle CLI 已 install + kagglehub 1.0.1 已 install + user 配置步骤（5 min）+ pkg 升级路径 + ImageNet val 50K 替换 cosine eval 一键命令 |
-| `milestones/M1-progress.md` | **Live** | 持续推进记录（**52+ 篇心跳**）；含每轮诊断、改动、远端实验、文档同步、剩余未做 |
+| `milestones/M1-progress.md` | **Live** | 持续推进记录（**67+ 轮心跳 V1.0.1 + V1.0.2 持续推进**）；含每轮诊断、改动、远端实验、文档同步、剩余未做 |
 
 ## 技术调研（`Wiki/1-技术调研/`）
 
@@ -54,6 +62,8 @@
 | `paper_full_draft_V1.0.0.tex` | **Academic submission (LaTeX)** | Pandoc 自动转换的 LaTeX article（~85 KB），可直接 `pdflatex` 编译为 PDF（待 venue submission 模板替换 `\documentclass`） |
 | `复现与许可说明_V1.0.0.md` | Reproducibility | 一键 PowerShell + 数据替换流程 + License 副本说明 |
 | `R2_emergency_acceptance_analysis_V1.0.0.md` | **Acceptance / Verdict** | V1.0.1 R2 应急方案适用性官方分析 — SmoothQuant α=0.8 4 输出 cos_mean / cos_min × R2 阈值 ≥ 0.97 双视角对照（cos_mean 4/4 达成；cos_min 2/4 达成，feat_layer_16/20 缺口 0.0001/0.0017）+ 工程语义解读 + 3 种交付建议 |
+| `TRT_acceleration_metrics_V1.0.0.md` + `.pdf` | **Reportable / Stakeholder** | TRT 加速指标完整报告 V1.0.0（779 KB PDF，11 节）— 含 testing env / 模型契约 / G1-G5 实测 / R1/R2 verdict / SMART 5 目标对照 / 11 ADR 简表 |
+| `TRT_acceleration_metrics_V1.0.2-delta.md` + `.pdf` | **V1.0.2 Delta Report** | V1.0.2 增量章节（813 KB PDF，11 节）— 4 ADRs Implemented + PTQ precision wall 5-vector 综合分析（INT8/sparsity/FP8 全部 FAIL）+ stacked envelope 3.45× / 5.0× target unreachable 数学证明 + V1.3 QAT 启动 implication |
 
 ## 实验结果（`Wiki/2-实验结果/`）
 
