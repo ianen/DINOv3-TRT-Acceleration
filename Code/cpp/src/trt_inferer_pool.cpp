@@ -4,6 +4,7 @@
 #include <cuda_runtime_api.h>
 
 #include <atomic>
+#include <cstring>
 #include <fstream>
 #include <iostream>
 #include <memory>
@@ -12,6 +13,8 @@
 #include <stdexcept>
 #include <utility>
 #include <vector>
+
+#include "dinov3_trt/pinned_buffer.h"
 
 // V1.0.3 ADR-020 Phase 2 — shared engine + N independent contexts.
 //
@@ -233,6 +236,11 @@ class TRTInfererPool::Impl {
     cudaStream_t stream{nullptr};
     DeviceBuffer d_input;
     std::array<DeviceBuffer, kOutputCount> d_outputs;
+    // V1.0.2 ADR-012 PinnedBuffer staging — pageable→pinned→device for input,
+    // device→pinned→pageable for outputs. Halves H2D/D2H wall time vs
+    // pageable in V1.0.3 G1 r224 b8 N=4 regime where transfer dominates.
+    PinnedBuffer pinned_input;
+    std::array<PinnedBuffer, kOutputCount> pinned_outputs;
     std::mutex mu;
   };
 
@@ -270,6 +278,15 @@ class TRTInfererPool::Impl {
       }
     }
 
+    // Direct H2D from caller's pageable host buffer to device.
+    //
+    // Tried PinnedBuffer staging (pageable→pinned→device + reverse) but it
+    // regressed: the extra pageable→pinned CPU memcpy outweighs the H2D
+    // savings since the caller hands us pageable memory. Pinned memory only
+    // helps when the CALLER is already pinned, or when the API contract
+    // exposes pinned input buffers (a future Phase 3 API change). Reverted
+    // to direct memcpy for now — empirically the fastest path with the
+    // current pageable-input API contract.
     status = cuda_status(
         cudaMemcpyAsync(slot.d_input.get(), input.data, input.byte_size(),
                         cudaMemcpyHostToDevice, slot.stream),

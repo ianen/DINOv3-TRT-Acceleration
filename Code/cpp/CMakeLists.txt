@@ -98,6 +98,11 @@ if(DINOV3_TRT_CPP_ENABLE_TENSORRT)
   add_executable(dinov3_trt_pool_benchmark tools/pool_benchmark.cpp)
   target_link_libraries(dinov3_trt_pool_benchmark PRIVATE dinov3_trt_cpp_tensorrt)
 
+  # V1.0.3 G5 acceptance gate validator: cosine bit-exactness of pool
+  # concurrent outputs vs single-context reference. Exits 0 on pass.
+  add_executable(dinov3_trt_pool_cos_validator tools/pool_cos_validator.cpp)
+  target_link_libraries(dinov3_trt_pool_cos_validator PRIVATE dinov3_trt_cpp_tensorrt)
+
   # V1.0.3 ADR-020 §9.6 Phase 2 prototype: tests if shared engine + N
   # contexts + concurrent enqueueV3 bypasses the TRT 10.13 Myelin
   # thread-safety blocker observed with per-slot independent engines.
