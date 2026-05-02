@@ -95,8 +95,20 @@ if(DINOV3_TRT_CPP_ENABLE_TENSORRT)
   target_link_libraries(dinov3_trt_dump_outputs PRIVATE dinov3_trt_cpp_tensorrt)
 
   # V1.0.3 ADR-020: TRTInfererPool throughput benchmark binary.
+  # Uses cuda_runtime_api.h directly for the optional --pinned worker
+  # buffer path (cudaMallocHost), so needs explicit CUDA include path.
   add_executable(dinov3_trt_pool_benchmark tools/pool_benchmark.cpp)
   target_link_libraries(dinov3_trt_pool_benchmark PRIVATE dinov3_trt_cpp_tensorrt)
+  target_include_directories(
+    dinov3_trt_pool_benchmark
+    PRIVATE
+      "${DINOV3_CUDA_INCLUDE_DIR}"
+  )
+  target_link_libraries(
+    dinov3_trt_pool_benchmark
+    PRIVATE
+      "${DINOV3_CUDA_RUNTIME_LIB}"
+  )
 
   # V1.0.3 G5 acceptance gate validator: cosine bit-exactness of pool
   # concurrent outputs vs single-context reference. Exits 0 on pass.

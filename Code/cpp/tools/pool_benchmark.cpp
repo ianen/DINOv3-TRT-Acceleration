@@ -9,6 +9,8 @@
 
 #include "dinov3_trt/trt_inferer_pool.h"
 
+#include <cuda_runtime_api.h>
+
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -46,6 +48,7 @@ struct CliArgs {
   int warmup{10};
   int iterations{200};
   bool enable_cuda_graphs{true};
+  bool pinned_buffers{false};  // Use cudaMallocHost-pinned worker buffers — fast cudaMemcpyAsync path
 };
 
 [[nodiscard]] std::string json_escape(std::string_view value) {
@@ -87,7 +90,10 @@ void print_usage(const char* prog) {
       << "  --threads       caller thread count (default: equal to --num-streams)\n"
       << "  --warmup        warmup iterations PER thread (default: 10)\n"
       << "  --iters         timed iterations PER thread (default: 200)\n"
-      << "  --no-graphs     disable per-slot CudaGraphPool (V1.0.2 ADR-012)\n";
+      << "  --no-graphs     disable per-slot CudaGraphPool (V1.0.2 ADR-012)\n"
+      << "  --pinned        allocate worker thread input/output buffers via\n"
+      << "                  cudaMallocHost so cudaMemcpyAsync inside the pool\n"
+      << "                  uses the pinned-fast-path. Best end-to-end qps.\n";
 }
 
 [[nodiscard]] bool parse_args(int argc, char** argv, CliArgs& out) {
@@ -123,6 +129,8 @@ void print_usage(const char* prog) {
       if (!parse_int(v, &out.iterations)) { std::cerr << "--iters invalid\n"; return false; }
     } else if (tok == "--no-graphs") {
       out.enable_cuda_graphs = false;
+    } else if (tok == "--pinned") {
+      out.pinned_buffers = true;
     } else if (tok == "--help" || tok == "-h") {
       print_usage(argv[0]);
       std::exit(0);
@@ -140,14 +148,6 @@ void print_usage(const char* prog) {
     out.threads = out.num_streams;
   }
   return true;
-}
-
-void fill_deterministic_input(std::vector<float>& input, int seed) {
-  for (std::size_t idx = 0; idx < input.size(); ++idx) {
-    const double phase =
-        static_cast<double>((idx % 1009U) + static_cast<unsigned>(seed) + 1U) * 0.017;
-    input[idx] = static_cast<float>(std::sin(phase));
-  }
 }
 
 [[nodiscard]] double percentile(const std::vector<double>& sorted, double p) {
@@ -181,30 +181,83 @@ struct ThreadResult {
   std::string error;
 };
 
+// Lightweight pinned-host buffer for the benchmark caller side. When --pinned
+// is given, each worker allocates its input + 4 output buffers via
+// cudaMallocHost so cudaMemcpyAsync inside the pool takes the pinned-DMA fast
+// path. Without --pinned we fall back to std::vector<float> (pageable).
+struct PinnedFloat {
+  float* ptr{nullptr};
+  std::size_t elements{0};
+  ~PinnedFloat() { if (ptr) cudaFreeHost(ptr); }
+  bool allocate(std::size_t n) {
+    elements = n;
+    return cudaMallocHost(reinterpret_cast<void**>(&ptr), n * sizeof(float)) == cudaSuccess;
+  }
+  PinnedFloat() = default;
+  PinnedFloat(const PinnedFloat&) = delete;
+  PinnedFloat& operator=(const PinnedFloat&) = delete;
+};
+
+void fill_deterministic_pinned(float* p, std::size_t n, int seed) {
+  for (std::size_t i = 0; i < n; ++i) {
+    const double phase = static_cast<double>((i % 1009U) + static_cast<unsigned>(seed) + 1U) * 0.017;
+    p[i] = static_cast<float>(std::sin(phase));
+  }
+}
+
 void run_thread(
     int thread_id,
     int warmup,
     int iters,
     int batch_size,
     int image_size,
+    bool pinned,
     dinov3_trt::TRTInfererPool& pool,
     ThreadResult& result) {
   const dinov3_trt::TensorShape in_shape =
       dinov3_trt::input_shape_for(batch_size, image_size);
-  std::vector<float> input(static_cast<std::size_t>(in_shape.element_count()));
-  fill_deterministic_input(input, thread_id);
-  const dinov3_trt::TensorView input_view{
-      input.data(), in_shape, dinov3_trt::DataType::kFloat32};
-
   const dinov3_trt::TensorShape out_shape =
       dinov3_trt::output_shape_for(batch_size, image_size);
+  const std::size_t in_elems = static_cast<std::size_t>(in_shape.element_count());
   const std::size_t out_elems = static_cast<std::size_t>(out_shape.element_count());
-  std::array<std::vector<float>, dinov3_trt::kOutputCount> out_buffers;
+
+  // Two-track allocation: pageable (std::vector) or pinned (cudaMallocHost).
+  std::vector<float> v_input;
+  std::array<std::vector<float>, dinov3_trt::kOutputCount> v_outs;
+  PinnedFloat p_input;
+  std::array<PinnedFloat, dinov3_trt::kOutputCount> p_outs;
+  float* in_ptr = nullptr;
+  std::array<float*, dinov3_trt::kOutputCount> out_ptrs{};
+
+  if (pinned) {
+    if (!p_input.allocate(in_elems)) {
+      result.ok = false;
+      result.error = "cudaMallocHost(input) failed";
+      return;
+    }
+    in_ptr = p_input.ptr;
+    for (std::size_t i = 0; i < dinov3_trt::kOutputCount; ++i) {
+      if (!p_outs[i].allocate(out_elems)) {
+        result.ok = false;
+        result.error = "cudaMallocHost(output) failed";
+        return;
+      }
+      out_ptrs[i] = p_outs[i].ptr;
+    }
+  } else {
+    v_input.resize(in_elems);
+    in_ptr = v_input.data();
+    for (std::size_t i = 0; i < dinov3_trt::kOutputCount; ++i) {
+      v_outs[i].resize(out_elems);
+      out_ptrs[i] = v_outs[i].data();
+    }
+  }
+  fill_deterministic_pinned(in_ptr, in_elems, thread_id);
+
+  const dinov3_trt::TensorView input_view{in_ptr, in_shape, dinov3_trt::DataType::kFloat32};
   std::array<dinov3_trt::TensorView, dinov3_trt::kOutputCount> out_views;
-  for (std::size_t i = 0; i < out_buffers.size(); ++i) {
-    out_buffers[i].resize(out_elems);
-    out_views[i] = dinov3_trt::TensorView{
-        out_buffers[i].data(), out_shape, dinov3_trt::DataType::kFloat32};
+  for (std::size_t i = 0; i < dinov3_trt::kOutputCount; ++i) {
+    out_views[i] = dinov3_trt::TensorView{out_ptrs[i], out_shape, dinov3_trt::DataType::kFloat32};
   }
 
   for (int w = 0; w < warmup; ++w) {
@@ -262,7 +315,7 @@ int main(int argc, char** argv) {
   const auto wall_start = std::chrono::steady_clock::now();
   for (int t = 0; t < args.threads; ++t) {
     threads.emplace_back(run_thread, t, args.warmup, args.iterations,
-                         args.batch_size, args.image_size,
+                         args.batch_size, args.image_size, args.pinned_buffers,
                          std::ref(pool), std::ref(results[t]));
   }
   for (auto& th : threads) th.join();
@@ -306,6 +359,8 @@ int main(int argc, char** argv) {
   std::cout << "  \"iters_per_thread\": " << args.iterations << ",\n";
   std::cout << "  \"enable_cuda_graphs\": "
             << (args.enable_cuda_graphs ? "true" : "false") << ",\n";
+  std::cout << "  \"pinned_buffers\": "
+            << (args.pinned_buffers ? "true" : "false") << ",\n";
   std::cout << "  \"total_inferences\": " << total_inferences << ",\n";
   std::cout << "  \"total_wall_ms\": " << total_wall_ms << ",\n";
   std::cout << "  \"aggregate_calls_per_sec\": " << aggregate_calls_per_sec << ",\n";
