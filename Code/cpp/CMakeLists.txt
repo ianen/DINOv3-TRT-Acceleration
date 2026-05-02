@@ -97,6 +97,26 @@ if(DINOV3_TRT_CPP_ENABLE_TENSORRT)
   # V1.0.3 ADR-020: TRTInfererPool throughput benchmark binary.
   add_executable(dinov3_trt_pool_benchmark tools/pool_benchmark.cpp)
   target_link_libraries(dinov3_trt_pool_benchmark PRIVATE dinov3_trt_cpp_tensorrt)
+
+  # V1.0.3 ADR-020 §9.6 Phase 2 prototype: tests if shared engine + N
+  # contexts + concurrent enqueueV3 bypasses the TRT 10.13 Myelin
+  # thread-safety blocker observed with per-slot independent engines.
+  # Directly uses NvInfer.h (not the TRTInferer abstraction) so the test
+  # surface is minimal — needs explicit TRT/CUDA include + nvinfer link.
+  add_executable(dinov3_trt_test_concurrent_contexts tools/test_concurrent_contexts.cpp)
+  target_link_libraries(dinov3_trt_test_concurrent_contexts PRIVATE dinov3_trt_cpp_tensorrt)
+  target_include_directories(
+    dinov3_trt_test_concurrent_contexts
+    PRIVATE
+      "${DINOV3_TENSORRT_INCLUDE_DIR}"
+      "${DINOV3_CUDA_INCLUDE_DIR}"
+  )
+  target_link_libraries(
+    dinov3_trt_test_concurrent_contexts
+    PRIVATE
+      "${DINOV3_TENSORRT_NVINFER_LIB}"
+      "${DINOV3_CUDA_RUNTIME_LIB}"
+  )
 endif()
 
 if(DINOV3_TRT_CPP_BUILD_TESTS)
