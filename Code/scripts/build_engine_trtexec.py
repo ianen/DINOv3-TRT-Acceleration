@@ -89,6 +89,45 @@ def main() -> int:
         default=(),
         help="Convenience range for full transformer blocks to keep in FP32, e.g. 0-19",
     )
+    # V1.0.2 ADR-013: persistent timing cache + multi optimization profiles.
+    parser.add_argument(
+        "--additional-profile",
+        action="append",
+        default=[],
+        metavar="MIN:OPT:MAX",
+        help=(
+            "Add an extra optimization profile (e.g. --additional-profile 1:1:1 "
+            "for a static b=1 profile alongside the main b=1/8/32 dynamic one). "
+            "Repeatable. Resolution and input name match the main profile."
+        ),
+    )
+    parser.add_argument(
+        "--builder-optimization-level",
+        type=int,
+        default=None,
+        choices=range(0, 6),
+        help=(
+            "TensorRT builder optimization level (0=fastest build / lowest quality, "
+            "5=slowest build / highest quality). None keeps the trtexec default "
+            "(currently 3 in TRT 10.x). Level 5 is recommended for V1.0.2 once a "
+            "shared timing cache is in place."
+        ),
+    )
+    parser.add_argument(
+        "--persistent-cache-size-mb",
+        type=int,
+        default=None,
+        help=(
+            "Configure the CUDA L2 persistent cache size in MB. None keeps the "
+            "TRT default. Useful for ViT attention K/V cache reuse patterns."
+        ),
+    )
+    # V1.0.2 ADR-016: 2:4 structured sparsity (TRT >= 10.16 recommended).
+    parser.add_argument(
+        "--enable-sparsity",
+        action="store_true",
+        help="Pass --sparsity=enable to trtexec (requires sparse-aware ONNX weights).",
+    )
     parser.add_argument("--run-inference", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
@@ -105,6 +144,27 @@ def main() -> int:
         width=args.image_size,
     )
     contract = make_dinov3_vitl16_contract(args.image_size)
+
+    # V1.0.2 ADR-013: parse additional profiles (format MIN:OPT:MAX).
+    additional_profiles: list[ShapeProfile] = []
+    for spec in args.additional_profile:
+        try:
+            min_str, opt_str, max_str = spec.split(":")
+            additional_profiles.append(
+                ShapeProfile(
+                    input_name=args.input_name,
+                    min_batch=int(min_str),
+                    opt_batch=int(opt_str),
+                    max_batch=int(max_str),
+                    height=args.image_size,
+                    width=args.image_size,
+                )
+            )
+        except (ValueError, IndexError) as exc:
+            raise SystemExit(
+                f"--additional-profile must be MIN:OPT:MAX, got '{spec}'"
+            ) from exc
+
     config = TrtExecConfig(
         onnx_path=args.onnx,
         engine_path=args.engine,
@@ -117,6 +177,10 @@ def main() -> int:
         precision_constraints=args.precision_constraints,
         layer_precisions=layer_precisions,
         layer_output_types=layer_output_types,
+        additional_profiles=tuple(additional_profiles),
+        builder_optimization_level=args.builder_optimization_level,
+        persistent_cache_size_mb=args.persistent_cache_size_mb,
+        enable_sparsity=args.enable_sparsity,
     )
     command = build_trtexec_command(config)
     payload = {
