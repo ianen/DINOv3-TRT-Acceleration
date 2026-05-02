@@ -93,6 +93,10 @@ if(DINOV3_TRT_CPP_ENABLE_TENSORRT)
 
   add_executable(dinov3_trt_dump_outputs tools/dump_outputs.cpp)
   target_link_libraries(dinov3_trt_dump_outputs PRIVATE dinov3_trt_cpp_tensorrt)
+
+  # V1.0.3 ADR-020: TRTInfererPool throughput benchmark binary.
+  add_executable(dinov3_trt_pool_benchmark tools/pool_benchmark.cpp)
+  target_link_libraries(dinov3_trt_pool_benchmark PRIVATE dinov3_trt_cpp_tensorrt)
 endif()
 
 if(DINOV3_TRT_CPP_BUILD_TESTS)
