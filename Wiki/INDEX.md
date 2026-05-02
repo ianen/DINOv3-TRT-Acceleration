@@ -20,8 +20,8 @@
 | `ADR-010-V1.2-ONNX-Q-DQ-stripping_2026-05-01.md` | **Implemented · Negative result** | V1.2 ONNX 层 Q/DQ stripping 设计 + 实施 + 实测结论（第 25 轮闭合） |
 | `ADR-011-V1.3-QAT-future-work_2026-05-01.md` | **Proposed** | V1.3 QAT 量化感知 fine-tuning 设计文档 + 4 条启动门槛（第 27 轮新增，未实施） |
 | `V1.3_QAT_launch_threshold_evaluation_2026-05-01.md` | **Actionable evaluation** | V1.3 QAT 4 条启动门槛逐条评估 — 难度排序 / 推荐先满足路径 / 启动决策树（不启动 / 仅 V1.3 / +workshop paper / +full conference paper 4 选项 + 成本估算） |
-| `imagenet_403_workaround_manual_2026-05-01.md` | **Actionable manual** | ImageNet 403 GatedRepoError unblock 完整手册 — 第 48 轮远端网络 audit（Kaggle ✅ / HF ❌ / HF mirror gated）+ Kaggle CLI 已 install 验证 + user 配置步骤（5 min）+ download 脚本 ready-to-use + ImageNet val 50K 替换 cosine eval 命令 |
-| `milestones/M1-progress.md` | **Live** | 持续推进记录（**33 篇心跳**）；含每轮诊断、改动、远端实验、文档同步、剩余未做 |
+| `imagenet_403_workaround_manual_2026-05-01.md` | **Actionable manual V1.0.1** | ImageNet 403 GatedRepoError unblock 完整手册（第 50 轮 V1.0.1 修订）— 兼容 Kaggle 新 KGAT_/access_token + legacy kaggle.json 双格式 + 修正 dataset slug `titericz/imagenet1k-val` + Kaggle CLI 已 install + kagglehub 1.0.1 已 install + user 配置步骤（5 min）+ pkg 升级路径 + ImageNet val 50K 替换 cosine eval 一键命令 |
+| `milestones/M1-progress.md` | **Live** | 持续推进记录（**52+ 篇心跳**）；含每轮诊断、改动、远端实验、文档同步、剩余未做 |
 
 ## 技术调研（`Wiki/1-技术调研/`）
 

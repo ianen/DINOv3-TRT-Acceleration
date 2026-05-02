@@ -15,21 +15,29 @@ most reliable mirror by default and exposes the dataset slug as a CLI flag.
 
 User-side prerequisites (one-time setup)
 ========================================
-1. Create a Kaggle account if you don't have one (https://www.kaggle.com).
-2. Go to "Account -> Create new API token" — this downloads `kaggle.json`.
-3. Place `kaggle.json` at `C:\\Users\\USER\\.kaggle\\kaggle.json` on the
-   Windows remote (or `~/.kaggle/kaggle.json` on Linux/macOS).
-4. Restrict permissions: `chmod 600 ~/.kaggle/kaggle.json` (Linux/macOS) or
-   keep ACL default (Windows).
-5. Some Kaggle datasets require accepting their terms once via the web UI
-   before API download will succeed.
+Kaggle now ships two API token formats; both are accepted:
+
+* **New (KGAT)** — Settings -> API -> Create New Token shows a single
+  ``KGAT_*`` string and the helper command
+  ``echo KGAT_xxx > ~/.kaggle/access_token``.
+* **Legacy (kaggle.json)** — older accounts still receive a downloaded
+  ``kaggle.json`` containing ``{"username": ..., "key": ...}``.
+
+Place either file at one of:
+    Linux/macOS: ``~/.kaggle/access_token`` *or* ``~/.kaggle/kaggle.json``
+    Windows:     ``C:\\Users\\USER\\.kaggle\\access_token`` *or* ``kaggle.json``
+
+Then ``chmod 600`` on Linux/macOS (Windows ACL default is fine).
+
+Some Kaggle datasets require accepting their terms once via the web UI
+before API download will succeed.
 
 Usage
 =====
 ::
 
     python scripts/download_imagenet_val_via_kaggle.py \\
-        --kaggle-dataset titericz/imagenet1k-validation \\
+        --kaggle-dataset titericz/imagenet1k-val \\
         --output-dir Artifacts/datasets/imagenet_val_kaggle
 
 The script then:
@@ -54,11 +62,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--kaggle-dataset",
-        default="titericz/imagenet1k-validation",
+        default="titericz/imagenet1k-val",
         help=(
-            "Kaggle dataset slug. Default: 'titericz/imagenet1k-validation' "
+            "Kaggle dataset slug. Default: 'titericz/imagenet1k-val' "
             "(50,000 ILSVRC2012 val images). Other known mirrors include "
-            "'lijiyu/imagenet' (full train+val) — pick the smallest that "
+            "'tusonggao/imagenet-validation-dataset' (alternative 50K val) "
+            "and 'lijiyu/imagenet' (full train+val) — pick the smallest that "
             "covers val if download size is a concern."
         ),
     )
@@ -91,18 +100,29 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def find_kaggle_credentials() -> Path | None:
-    """Return the path to kaggle.json if found in the standard locations."""
+CREDENTIAL_FILENAMES: tuple[str, ...] = ("access_token", "kaggle.json")
 
-    candidates = [
-        Path.home() / ".kaggle" / "kaggle.json",
-        Path(os.environ.get("KAGGLE_CONFIG_DIR", "")) / "kaggle.json"
-        if os.environ.get("KAGGLE_CONFIG_DIR")
-        else None,
-    ]
-    for path in candidates:
-        if path and path.is_file():
-            return path
+
+def find_kaggle_credentials() -> Path | None:
+    """Return the path to a Kaggle credential file in standard locations.
+
+    Detects either the new ``access_token`` (single-string KGAT_* PAT) or the
+    legacy ``kaggle.json`` (username+key JSON). Search order: new format first
+    (current Kaggle UI default), then legacy. Honors ``KAGGLE_CONFIG_DIR``
+    when set, falling back to ``~/.kaggle``.
+    """
+
+    search_dirs: list[Path] = []
+    env_dir = os.environ.get("KAGGLE_CONFIG_DIR")
+    if env_dir:
+        search_dirs.append(Path(env_dir))
+    search_dirs.append(Path.home() / ".kaggle")
+
+    for directory in search_dirs:
+        for filename in CREDENTIAL_FILENAMES:
+            candidate = directory / filename
+            if candidate.is_file():
+                return candidate
     return None
 
 
@@ -111,12 +131,15 @@ def kaggle_setup_instructions() -> str:
         "Kaggle credentials not found.\n"
         "\n"
         "  1. Sign up at https://www.kaggle.com (free).\n"
-        "  2. Go to Account -> 'Create new API token' -> downloads kaggle.json.\n"
-        "  3. Place kaggle.json at:\n"
-        "         Windows: C:\\Users\\USER\\.kaggle\\kaggle.json\n"
-        "         Linux/macOS: ~/.kaggle/kaggle.json\n"
-        "  4. (Linux/macOS) chmod 600 ~/.kaggle/kaggle.json\n"
-        "  5. Re-run this script.\n"
+        "  2. Go to Settings -> 'API' -> 'Create New Token'.\n"
+        "     Current UI shows a single KGAT_* string and the helper command:\n"
+        "         echo KGAT_xxx > ~/.kaggle/access_token\n"
+        "         chmod 600 ~/.kaggle/access_token\n"
+        "     Older accounts may instead receive a downloaded kaggle.json.\n"
+        "  3. Place either file at:\n"
+        "         Windows: C:\\Users\\USER\\.kaggle\\{access_token,kaggle.json}\n"
+        "         Linux/macOS: ~/.kaggle/{access_token,kaggle.json}\n"
+        "  4. Re-run this script.\n"
         "\n"
         "The script does not transmit your token outside your machine."
     )
@@ -200,7 +223,7 @@ def main(argv: list[str] | None = None) -> int:
     if creds is None:
         print(kaggle_setup_instructions(), file=sys.stderr)
         return 2
-    print(f"[auth] kaggle.json located at: {creds}")
+    print(f"[auth] credential file located at: {creds}")
 
     if args.dry_run:
         # Authenticate to verify the token is valid, then exit.

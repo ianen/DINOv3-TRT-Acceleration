@@ -161,10 +161,22 @@ ssh windows-pc 'cmd /c "type D:\WorkPlace\ZMP\DINOv3-TRT-Acceleration\<log>.log"
 - **结果索引**：
   - `Wiki/2-实验结果/M1-M6-当前验收矩阵_2026-04-30.md`（V1.0.0 主线 frozen）
   - `Wiki/2-实验结果/V1.1-stretch-summary_2026-05-01.md`（V1.1 stretch 7 轮 + V1.2 实施 + ADR-011 引用）
-  - `Wiki/0-项目计划/milestones/M1-progress.md`（**33 轮心跳**详细记录）
+  - `Wiki/0-项目计划/milestones/M1-progress.md`（**55+ 轮心跳**详细记录）
 - **同步工具**：`scripts/sync_remote_windows_repo.py` 双向（默认 push；`--pull-reports` 反向回拉文本产物）。
-- **测试与质量门**：本地 `pytest 323 passed, 3 skipped` + ruff/mypy 全绿（**112 Python 源文件**）+ **line coverage 81%**（pytest-cov 已配置，跨过 V1.0.1 §12.1 ≥ 80% 阈值）；远端 Windows pytest 同步绿。`tests/test_layer_precision.py` / `test_onnx_qdq_stripper.py` / `test_onnx_qdq_strip_planner.py` / `test_trt_runtime.py` 等 pure-Python 与 mock-based 模块本地 macOS 可单元测试。
+- **测试与质量门**：本地 `pytest 357 passed, 3 skipped` + ruff/mypy 全绿（含 `mypy --strict`，**116 Python 源文件**）+ **line coverage 81%**（pytest-cov 已配置，跨过 V1.0.1 §12.1 ≥ 80% 阈值）；远端 Windows pytest 同步绿。`tests/test_layer_precision.py` / `test_onnx_qdq_stripper.py` / `test_onnx_qdq_strip_planner.py` / `test_trt_runtime.py` / `test_run_imagenet_val_post_download.py`（19 测覆盖 §12.1 闭合 orchestrator）等 pure-Python 与 mock-based 模块本地 macOS 可单元测试。
 
-剩余未闭合（仅 2 项，全非工程性）：
-1. 完整 ImageNet val 授权放行后用 `scripts/export_hf_imagenet_parquet_images.py` 一键替换重跑 `formal_summary` + 触发 V1.3 QAT（ADR-011 § 8 启动门槛）。
-2. PPT/海报排版稿：**已生成 583 KB PPTX 终稿**（`Wiki/2-技术报告/ppt_slides/output/DINOv3-TRT-Acceleration_V1.0.0.pptx`，18 slides + 5 SVG embedded）。
+**V1.0.1 §12.1 9/9 全条款闭合**（第 67 轮 2026-05-02 达成）：
+
+- ✅ 单测 line coverage 81%（pytest-cov 配置）
+- ✅ R1 strict cos_min ≥ 0.99 主交付：**BF16 prefer 0.9977 on real ImageNet val 1000 类**
+- ✅ R2 emergency cos_min ≥ 0.97 备选：**INT8 SmoothQuant α=0.8 0.9727 on real ImageNet**（per-layer 4/12/16/20: 0.9908/0.9895/0.9762/0.9727 严格符合 ADR-010 root cause "前段量化噪声向深层累积"）
+- ✅ matrix 5 batch × 3 分辨率（87 行 CSV，memory-bound 边界论证）
+- ✅ 完整 ImageNet val 50K 解锁（Kaggle `titericz/imagenet1k-val` 走 kagglehub + 新 KGAT auth + WMI detach + 50-retry self-heal）
+- ✅ Paper IMRaD 完整 draft 100%（~9235 词 + LaTeX 单文件 + 18-slide PPTX）
+- ✅ 11 份 ADR 决策链 + V1.3 QAT 启动门槛文档
+- ✅ 一键复现 + SHA256 manifest（`scripts/build_all_figures.py`）
+- ✅ R1/R2 双阈值 verdict 在 real data 上闭合（`Artifacts/reports/imagenet50k_post_download_summary.json`）
+
+**Post-closure actionable**（user-side，非工程项）：
+- ⚠️ 立即去 https://www.kaggle.com/settings → API → "Expire API Token" 作废第 50 轮聊天暴露的 KGAT token。
+- 📦 V1.3 QAT 启动门槛 4 条评估见 `Wiki/0-项目计划/V1.3_QAT_launch_threshold_evaluation_2026-05-01.md`（数据集 unblock 现已满足，其他 3 条待评估）。

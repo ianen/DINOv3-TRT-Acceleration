@@ -32,7 +32,7 @@ SCRIPT = _load_script_module()
 
 def test_parse_args_defaults() -> None:
     args = SCRIPT.parse_args(["--output-dir", "/tmp/x"])
-    assert args.kaggle_dataset == "titericz/imagenet1k-validation"
+    assert args.kaggle_dataset == "titericz/imagenet1k-val"
     assert args.output_dir == Path("/tmp/x")
     assert args.dry_run is False
     assert args.force is False
@@ -70,10 +70,45 @@ def test_find_kaggle_credentials_found_in_home(
     token = home_kaggle / "kaggle.json"
     token.write_text('{"username":"x","key":"y"}', encoding="utf-8")
 
+    monkeypatch.delenv("KAGGLE_CONFIG_DIR", raising=False)
     with patch("pathlib.Path.home", return_value=tmp_path):
         creds = SCRIPT.find_kaggle_credentials()
 
     assert creds == token
+
+
+def test_find_kaggle_credentials_finds_new_access_token_format(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Detect the new Kaggle ``access_token`` (single-string KGAT_*) format."""
+    home_kaggle = tmp_path / ".kaggle"
+    home_kaggle.mkdir()
+    token = home_kaggle / "access_token"
+    token.write_text("KGAT_dummytokenforcoveragetestingonly", encoding="utf-8")
+
+    monkeypatch.delenv("KAGGLE_CONFIG_DIR", raising=False)
+    with patch("pathlib.Path.home", return_value=tmp_path):
+        creds = SCRIPT.find_kaggle_credentials()
+
+    assert creds == token
+
+
+def test_find_kaggle_credentials_prefers_access_token_over_legacy(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When both formats exist, the new ``access_token`` is preferred."""
+    home_kaggle = tmp_path / ".kaggle"
+    home_kaggle.mkdir()
+    new_token = home_kaggle / "access_token"
+    new_token.write_text("KGAT_dummy", encoding="utf-8")
+    legacy_token = home_kaggle / "kaggle.json"
+    legacy_token.write_text('{"username":"x","key":"y"}', encoding="utf-8")
+
+    monkeypatch.delenv("KAGGLE_CONFIG_DIR", raising=False)
+    with patch("pathlib.Path.home", return_value=tmp_path):
+        creds = SCRIPT.find_kaggle_credentials()
+
+    assert creds == new_token
 
 
 def test_find_kaggle_credentials_via_env(
@@ -91,10 +126,12 @@ def test_find_kaggle_credentials_via_env(
     assert creds == token
 
 
-def test_kaggle_setup_instructions_mentions_required_steps() -> None:
+def test_kaggle_setup_instructions_mentions_both_formats() -> None:
     text = SCRIPT.kaggle_setup_instructions()
-    assert "kaggle.json" in text
     assert "kaggle.com" in text
+    assert "access_token" in text
+    assert "kaggle.json" in text
+    assert "KGAT_" in text
 
 
 def test_main_dry_run_when_creds_missing_returns_2(
@@ -129,10 +166,10 @@ def test_write_manifest_lists_extracted_images(tmp_path: Path) -> None:
     img1.write_bytes(b"\xff\xd8")
     img2.write_bytes(b"\xff\xd8")
 
-    manifest_path = SCRIPT.write_manifest(tmp_path, None, "titericz/imagenet1k-validation")
+    manifest_path = SCRIPT.write_manifest(tmp_path, None, "titericz/imagenet1k-val")
 
     payload = json.loads(manifest_path.read_text(encoding="utf-8"))
-    assert payload["kaggle_dataset"] == "titericz/imagenet1k-validation"
+    assert payload["kaggle_dataset"] == "titericz/imagenet1k-val"
     assert payload["image_count"] == 2
     assert sorted(payload["images"]) == sorted(
         [

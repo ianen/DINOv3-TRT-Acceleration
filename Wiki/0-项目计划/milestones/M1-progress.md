@@ -1,5 +1,99 @@
 # M1 Baseline Progress Notes
 
+## 2026-05-02 · 后续轮次（ImageNet val 50K 下载完成 — V1.0.1 §12.1 FINAL CLOSURE）
+
+第六十七次心跳。承接第 50-66 轮 ImageNet 403 unblock 全套自动化路径就位 + 下载在 35-58h ETA 区间艰难推进后，第 65-66 轮观察到 **网络突变速度从 25 KB/s 涨到 ~1.8 MB/s**（晚高峰过去 / CDN edge 切换 / 国际链路恢复），整段下载在 ~7.5 hr 内完成（非预期的 50+ hr）。
+
+**Download 完成实证**：
+
+- 路径：`D:\WorkPlace\ZMP\DINOv3-TRT-Acceleration\Code\Artifacts\datasets\imagenet_val_kagglehub\datasets\titericz\imagenet1k-val\versions\1\imagenet-val`
+- 50,000 JPEG（完整 ILSVRC2012 val split）
+- `download.success` marker 自动写入
+
+**Post-download orchestrator 一键触发产出**（默认 1000 eval / batch 8 / r224）：
+
+| 候选 | cos_min on real ImageNet val 1000 | Verdict | feat_layer_4 / 12 / 16 / 20 cos_min |
+|---|---|---|---|
+| **BF16 prefer**（主交付） | **0.9977** | **R1_PASS_strict** ✓（cos_min ≥ 0.99）| 0.9999 / 0.9995 / 0.9981 / 0.9977 |
+| **INT8 SmoothQuant α=0.8**（R2 应急） | **0.9727** | **R2_PASS_emergency** ✓（cos_min ≥ 0.97）| 0.9908 / 0.9895 / 0.9762 / 0.9727 |
+
+**关键观察**：
+
+1. BF16 prefer 在完整 1000 类 ImageNet 比 Imagenette proxy 微降（0.9986 → 0.9977，−0.0009），**远超 R1 strict 阈值 0.99**，主交付候选稳健。
+2. INT8 SmoothQuant α=0.8 在 ImageNet 比 Imagenette 微降（0.9765 → 0.9727，−0.0038），**仍在 R2 emergency 阈值 0.97 之上**。
+3. INT8 per-layer 模式严格符合 ADR-010 root cause assertion：feat_layer_4 (0.9908) → 12 (0.9895) → 16 (0.9762) → 20 (0.9727)，**前段量化噪声向深层单调累积**。
+
+**§12.1 整体闭合状态**：
+
+- 1. 单测 line coverage ≥ 80% — ✅ 81%（pytest-cov 配置）
+- 2. R1 strict cos_min ≥ 0.99 主交付 — ✅ BF16 prefer 0.9977 on real ImageNet
+- 3. R2 emergency cos_min ≥ 0.97 备选 — ✅ INT8 SmoothQuant α=0.8 0.9727 on real ImageNet
+- 4. matrix 5 batch × 3 分辨率 — ✅ memory-bound 边界已论证（87 行 CSV）
+- 5. 完整 ImageNet val 解锁 — ✅ Kaggle workaround 路径全套执行成功
+- 6. Paper IMRaD 完整 draft — ✅ 100%（~9235 词 + LaTeX + 18-slide PPTX）
+- 7. ADR 决策链 — ✅ 11 份完整
+- 8. 一键复现 + SHA256 manifest — ✅ scripts/build_all_figures.py
+- 9. R1/R2 双阈值 verdict 在 real data 上闭合 — ✅ 本轮达成
+
+**剩余 actionable**：
+
+- ⚠️ User 立即去 Kaggle Settings → "Expire API Token" 作废第 50 轮聊天中暴露的 `KGAT_3a933f...` token（pragmatic 路径选择 A 已使用完，下载已完成）
+- 📦 项目交付包：`Wiki/2-技术报告/技术报告_V1.0.0.md` + `paper_full_draft_V1.0.0.tex` + `ppt_slides/output/DINOv3-TRT-Acceleration_V1.0.0.pptx` + `Artifacts/reports/imagenet50k_post_download_summary.json`（本轮新产出，含 R1/R2 verdict）
+
+## 2026-05-01 · 后续轮次（ImageNet 403 unblock V2 — Kaggle KGAT auth + WMI detach + post-download orchestrator）
+
+第五十-五十三次心跳。承接第 49 轮 paper assembly 100% 完成后，本轮聚焦 §12.1 唯一未闭合外部 blocker（ImageNet val 50K 解锁）。从原本写好的旧 kaggle.json 路径推进时遇到 Kaggle UI 升级 + dataset slug 失效，重新铺设全套自动化路径。
+
+**Discovery（外部 blocker 形态变化）**：
+
+- Kaggle 在 2025-2026 升级 API token 体系：UI 不再下载 `kaggle.json` 双字段 JSON，改为单字符串 `KGAT_*` PAT + `~/.kaggle/access_token` 文件。
+- 旧 dataset slug `titericz/imagenet1k-validation` 现 404；正确 slug 为 **`titericz/imagenet1k-val`**。
+- User 建议改用 `kagglehub` 1.0.1 新 SDK（KGAT auth 支持更原生），替代 legacy `kaggle 1.7.4.5` CLI。
+
+**Action**：
+
+- `Code/scripts/download_imagenet_val_via_kaggle.py` 兼容化：`find_kaggle_credentials()` 优先 `access_token` → fallback `kaggle.json`，默认 slug 修正。+2 单元测试（access_token detect + 优先级）。
+- 远端 `pip install kagglehub` → 1.0.1 落地。
+- Detach pattern 三轮迭代：v1 `Start-Process` 早退 / v2 `cmd /c start /b` log empty / v3 **WMI Win32_Process.Create**（真 detach 成功，survives ssh disconnect / mac shutdown / session 结束）。
+- `_kagglehub_smoke_v3.py` 内置 **50-retry on read timeout + 30s sleep + range-resume from cache**：实测 attempt 1 read timeout 后 attempt 2 自愈成功。
+- `_check_kagglehub_progress.ps1` 一键查询 `STATUS={DOWNLOADING,COMPLETE,FAILED,ORPHANED}` / size / 吞吐 / ETA / log_tail / success-failed marker。
+- **Post-download orchestrator** `Code/scripts/run_imagenet_val_post_download.py`（~330 行）一键 manifest gen + 双候选 cosine eval（BF16 prefer + INT8 SmoothQuant α=0.8）+ R1 strict / R2 emergency / FAIL 三档 verdict 分级 + unified summary report。+18 单元测试（image_root 解析 / kagglehub versions 路径下钻 / R1/R2/FAIL 分级 / dry-run 模式）。
+
+**Quality gate**：
+
+- 本地 `pytest 357 passed, 3 skipped`（was 338 → +19 orchestrator 新测含 1 regression + 2 access_token 测试）。
+- coverage 81% 保持、ruff 全绿、`mypy --strict` 全绿。
+- 远端 orchestrator **end-to-end 实测**（不是 dry-run）已用 Imagenette 100 张验证两条候选路径：
+  - BF16 prefer cos_min = 0.9986 → R1_PASS_strict（feat_layer_20 worst）。
+  - INT8 SmoothQuant α=0.8 cos_min = 0.9765 → R2_PASS_emergency（feat_layer_20 worst 0.9765；feat_layer_4/12 均 ≥ 0.99；与项目 R2 应急方案 root cause 一致：前段量化噪声累积到 layer 16/20）。
+- 远端 `download_imagenet_val_via_kaggle.py` + `run_imagenet_val_post_download.py` 双脚本已 scp 到位。
+
+**Critical pre-flight bug catch（如不端到端实测就会浪费 30+ 小时下载）**：
+
+- 第一次端到端跑 orchestrator 在 Imagenette 上 crash：`AttributeError: 'list' object has no attribute 'items'` in `summarize_pair`。
+- Root cause：`evaluate_engine_pair_on_images.py` 实际 schema 是 top-level `outputs: list[dict]` + 每项 `cosine_similarity_min/mean`；orchestrator 之前假设是 `per_output_metrics: dict[name, metrics]` + `cosine_min/mean`（凭空猜测的 schema）。
+- 修复：`_normalize_outputs()` + `_first_present()` 双兼容（canonical list-based + legacy dict-based + 多种字段名 alias）；新增 1 regression test 用真实 evaluator schema 验证；mypy strict 一次过。
+- **教训**：dry-run 只验证 CLI 调用，不会 catch schema mismatch；任何依赖外部脚本输出的 orchestrator **必须**端到端实跑一次。
+
+**Status（最新心跳）**：
+
+- WMI-detached PID 32536 运行中，attempt 2/50（attempt 1 已自愈）。
+- 进度：235 MB / 6.21 GB (3.97%)，avg 64 KB/s，ETA ~25 hours。
+- Self-heal armed：50 retries on timeout + 5 min socket timeout + range-resume。
+
+**Updated docs**：
+
+- `Wiki/0-项目计划/imagenet_403_workaround_manual_2026-05-01.md` V1.0.0 → **V1.0.1**（新 KGAT UI 截图实证 + 正确 slug + pkg 升级路径 + 一键 orchestrator 命令）。
+- `Wiki/INDEX.md`（manual 引用更新到 V1.0.1，心跳计数 33→52+）。
+
+**Next（下载完成后自动触发）**：
+
+```bash
+ssh windows-pc 'cd /d D:\WorkPlace\ZMP\DINOv3-TRT-Acceleration\Code && .venv\Scripts\python.exe scripts\run_imagenet_val_post_download.py'
+```
+
+跑完即关闭 §12.1 唯一外部 blocker；同时提醒 user 立即 expire 已暴露的 KGAT token。
+
 ## 2026-05-01 · 后续轮次（paper full draft assembly + Pandoc LaTeX — venue submission single-file）
 
 第四十九次心跳触发。承接第 36-42 轮 paper 各 section drafts 100% drafted（分散在 6 份 markdown）+ 第 43-48 轮 §12.1 工程层 actionable 100%闭合后，本轮做 paper finalization 的 mechanical 最后一步：6 份 draft assemble 成 single-file submission package + Pandoc 转 LaTeX。
