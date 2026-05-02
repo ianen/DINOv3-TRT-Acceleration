@@ -199,14 +199,25 @@ $nInstances = $maxStreams
 if (Test-Path -LiteralPath $benchmarkJson) {
     try {
         $benchData = Get-Content -LiteralPath $benchmarkJson -Raw | ConvertFrom-Json
-        # benchmark_multi_stream.py output schema: {"runs": [{"num_streams": N, "aggregate_qps": x, "median_latency_ms": y, ...}, ...]}
-        if ($benchData.runs) {
-            $maxStreamRun = $benchData.runs | Sort-Object -Property num_streams -Descending | Select-Object -First 1
+        # benchmark_multi_stream.py schema: {"results": [{"n_streams", "aggregate_qps",
+        # "median_latency_ms_p50_across_workers", "per_worker": [{"max_latency_ms"}], ...}]}
+        if ($benchData.results) {
+            $maxStreamRun = $benchData.results | Sort-Object -Property n_streams -Descending | Select-Object -First 1
             if ($maxStreamRun) {
-                if ($maxStreamRun.PSObject.Properties["aggregate_qps"]) { $aggregateQps = "{0:F2}" -f $maxStreamRun.aggregate_qps }
-                if ($maxStreamRun.PSObject.Properties["median_latency_ms"]) { $p50Latency = "{0:F3}" -f $maxStreamRun.median_latency_ms }
-                if ($maxStreamRun.PSObject.Properties["p99_latency_ms"]) { $p99Latency = "{0:F3}" -f $maxStreamRun.p99_latency_ms }
-                if ($maxStreamRun.PSObject.Properties["num_streams"]) { $nInstances = [int]$maxStreamRun.num_streams }
+                if ($maxStreamRun.PSObject.Properties["aggregate_qps"]) {
+                    $aggregateQps = "{0:F2}" -f $maxStreamRun.aggregate_qps
+                }
+                if ($maxStreamRun.PSObject.Properties["median_latency_ms_p50_across_workers"]) {
+                    $p50Latency = "{0:F3}" -f $maxStreamRun.median_latency_ms_p50_across_workers
+                }
+                # No p99 field; approximate with worker max_latency_ms (worst worker tail).
+                if ($maxStreamRun.PSObject.Properties["per_worker"]) {
+                    $maxLat = ($maxStreamRun.per_worker | Measure-Object -Property max_latency_ms -Maximum).Maximum
+                    if ($maxLat) { $p99Latency = "{0:F3}" -f $maxLat }
+                }
+                if ($maxStreamRun.PSObject.Properties["n_streams"]) {
+                    $nInstances = [int]$maxStreamRun.n_streams
+                }
             }
         }
     }

@@ -3,7 +3,9 @@ cmake_minimum_required(VERSION 3.20)
 project(dinov3_trt_cpp LANGUAGES CXX)
 
 add_library(dinov3_trt_cpp INTERFACE)
-target_compile_features(dinov3_trt_cpp INTERFACE cxx_std_17)
+# C++20 required for std::counting_semaphore in V1.0.3 ADR-020 TRTInfererPool;
+# all V1.0.1/V1.0.2 code is C++17-conformant so this is a forward-compatible bump.
+target_compile_features(dinov3_trt_cpp INTERFACE cxx_std_20)
 target_include_directories(
   dinov3_trt_cpp
   INTERFACE
@@ -63,6 +65,8 @@ if(DINOV3_TRT_CPP_ENABLE_TENSORRT)
       # V1.0.2 ADR-012: pinned host memory + CUDA Graph capture/replay.
       src/pinned_buffer.cpp
       src/cuda_graph_pool.cpp
+      # V1.0.3 ADR-020: shared-engine multi-context inference pool.
+      src/trt_inferer_pool.cpp
   )
   target_link_libraries(dinov3_trt_cpp_tensorrt PUBLIC dinov3_trt_cpp)
   target_include_directories(
