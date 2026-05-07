@@ -18,6 +18,7 @@
 | `项目计划报告_V1.0.1.md` | **Frozen** | V1.0.1 修订版主计划 + ADR-001~009（含 Token 序列结构 / RoPE 处理 / TRT 版本锁定等关键架构决策） |
 | `项目计划报告_V1.0.2.md` | **Proposed** | V1.0.2 主计划：runtime mechanics + sparsity + custom kernels；旗舰目标 5.0× cpp r518 b8（实测 envelope 3.45× — V1.0.2 系统性论证 PTQ 路径已穷尽） |
 | `项目计划报告_V1.0.3.md` | **In-Progress** | V1.0.3 主计划：throughput-oriented serving (Triton + C++ pool) + 全 GPU 利用率 (G7 SMART 目标) — G7 utilization 4 regime ✅; G1/G2/G3 throughput 双 user-blocker (Docker for ADR-019 + TRT 10.16 for ADR-020) |
+| `项目计划报告_V1.0.4.md` | **In-Progress** | V1.0.4 主计划：r=512 印花布 144 张数据集 production-environment inference benchmark + Python+C++ 6 段独立时序分解 — Day 1 code 全 ship (G1 ✅), G2-G6 awaiting Windows SSH unblock |
 | `项目计划报告_对外.md` | Frozen | 对外简版项目计划 |
 | `ADR-010-V1.2-ONNX-Q-DQ-stripping_2026-05-01.md` | **Implemented · Negative result** | V1.2 ONNX 层 Q/DQ stripping 设计 + 实施 + 实测结论（第 25 轮闭合） |
 | `ADR-011-V1.3-QAT-future-work_2026-05-01.md` | **Proposed** | V1.3 QAT 量化感知 fine-tuning 设计文档 + 4 条启动门槛（第 27 轮新增，未实施） |
@@ -32,6 +33,11 @@
 | `ADR-020-V1.0.3-CPP-Multi-Context-Pool_2026-05-02.md` | **Implemented Phase 1 · Blocked** | C++ TRTInfererPool 完整设计 + Phase 1 实现 (per-slot TRTInferer + counting_semaphore + per-slot mutex), Windows MSVC 2022 build clean, N=1 single-thread ✅, concurrent N=2 ❌ TRT 10.13 Myelin runner.cpp:778 thread-safety blocker (V1.0.3 §8 Risk #2 实证 materialize) |
 | `ADR-022-V1.0.3-CUDA-MPS-Evaluation_2026-05-03.md` | **Parked-Confirmed-Negative** | CUDA MPS 仅 Linux, Windows host 不支持; V1.0.3 G7 saturation 数据 (SM 96-99%) 直接证实 plan §3 "ViT-L compute-bound 收益 < 5%" 预测 — ADR-020 in-process pool 已实现 MPS 等价价值 |
 | `ADR-023-V1.0.3-TRT-LLM-vLLM-Inapplicability_2026-05-02.md` | **Confirmed-Negative** | TRT-LLM/vLLM 与 ViT pure encoder 不适用论证 (paper §7 future-work 引用素材) — TRT-LLM 90% LLM-decode-specific, vLLM 唯一适用项 (CUDA Graph for ViT) 已被 V1.0.2 ADR-012 覆盖 |
+| `ADR-024-V1.0.4-Dataset-Resize_2026-05-07.md` | **Implemented** | V1.0.4 数据集 1024→512 离线 resize, 144 张 + SHA256 manifest, PIL LANCZOS / JPEG q=95 (G1 PASS) |
+| `ADR-025-V1.0.4-r512-Engine-Build_2026-05-07.md` | **Code Implemented · Awaiting SSH** | r=512 ONNX export (--image-size 参数加好) + FP32/BF16 prefer engine build launcher; cos verify 待 Windows 上电 |
+| `ADR-026-V1.0.4-Python-Production-Benchmark_2026-05-07.md` | **Code Implemented · Awaiting SSH** | production_benchmark.py 6 段独立计时 (disk_read/jpg_decode/preprocess/H2D/enqueueV3/D2H), JSON schema 严格定义, sweep launcher 已写 |
+| `ADR-027-V1.0.4-Cpp-Production-Benchmark_2026-05-07.md` | **Code Implemented · Awaiting SSH** | production_benchmark.cpp 镜像 Python 6 段计时 + stb_image vendor + CMake 注册 (G5 Python↔C++ diff ≤10% 对照) |
+| `ADR-028-V1.0.4-Report-Synthesis_2026-05-07.md` | **Skeleton Drafted · Awaiting Data** | V1.0.4 报告 9 节结构 + CSV schema (24 列) + Pareto 表模板, 数据待 sweep 完跑后填充 |
 | `V1.3_QAT_launch_threshold_evaluation_2026-05-01.md` | **Actionable evaluation** | V1.3 QAT 4 条启动门槛逐条评估 — 难度排序 / 推荐先满足路径 / 启动决策树（不启动 / 仅 V1.3 / +workshop paper / +full conference paper 4 选项 + 成本估算） |
 | `imagenet_403_workaround_manual_2026-05-01.md` | **Actionable manual V1.0.1** | ImageNet 403 GatedRepoError unblock 完整手册（第 50 轮 V1.0.1 修订）— 兼容 Kaggle 新 KGAT_/access_token + legacy kaggle.json 双格式 + 修正 dataset slug `titericz/imagenet1k-val` + Kaggle CLI 已 install + kagglehub 1.0.1 已 install + user 配置步骤（5 min）+ pkg 升级路径 + ImageNet val 50K 替换 cosine eval 一键命令 |
 | `milestones/M1-progress.md` | **Live** | 持续推进记录（**67+ 轮心跳 V1.0.1 + V1.0.2 持续推进**）；含每轮诊断、改动、远端实验、文档同步、剩余未做 |
@@ -79,6 +85,7 @@
 | `V1.1-stretch-summary_2026-05-01.md` | **Live（V1.1 + V1.2 综合）** | V1.1 stretch 6 轮 + V1.2 实施综合表 + ADR-011 引用 + V1.1 期总产物增量 |
 | `V1.0.3-first-G7-datapoint_2026-05-02.md` | **Live（V1.0.3 G7 4-regime 闭合）** | r518 b8 99.08% / r336 b8 96.39% / r224 b1 N=1 88.24% / r224 b1 N=2 95.77% — BF16 dense path 三档 regime 全部接近 saturation；V1.3 QAT motivation 量化数据基础 |
 | `V1.0.3-implementation-status_2026-05-02.md` | **Live（V1.0.3 mid-impl status snapshot）** | TL;DR + Goal Progress + ADR Status + 今日 builds + measurements + 5 大决策记录 + Open user-side decisions（Path A/B/C for ADR-019 + TRT 10.16 upgrade for ADR-020）|
+| `V1.0.4-implementation-status_2026-05-07.md` | **Live（V1.0.4 Day 1 mid-impl）** | TL;DR + 6 commits + 5 ADR docs ship; G1 ✅ PASS, G2-G6 ⏸ Windows SSH user-blocker; 解封后单命令一键续跑协议（7 step）|
 
 ## 代码与实验产物（`Code/Artifacts/`）
 
