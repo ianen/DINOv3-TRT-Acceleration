@@ -134,6 +134,26 @@ if(DINOV3_TRT_CPP_ENABLE_TENSORRT)
       "${DINOV3_TENSORRT_NVINFER_LIB}"
       "${DINOV3_CUDA_RUNTIME_LIB}"
   )
+
+  # V1.0.4 ADR-027 production-environment benchmark binary mirroring the
+  # Python production_benchmark.py 6-stage timing structure
+  # (disk_read / jpg_decode / preprocess / h2d / enqueueV3 / d2h).
+  # Vendors stb_image.h for JPEG decode (single-header MIT, no extra deps).
+  add_executable(dinov3_trt_production_benchmark tools/production_benchmark.cpp)
+  target_link_libraries(dinov3_trt_production_benchmark PRIVATE dinov3_trt_cpp_tensorrt)
+  target_include_directories(
+    dinov3_trt_production_benchmark
+    PRIVATE
+      "${DINOV3_TENSORRT_INCLUDE_DIR}"
+      "${DINOV3_CUDA_INCLUDE_DIR}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb"
+  )
+  target_link_libraries(
+    dinov3_trt_production_benchmark
+    PRIVATE
+      "${DINOV3_TENSORRT_NVINFER_LIB}"
+      "${DINOV3_CUDA_RUNTIME_LIB}"
+  )
 endif()
 
 if(DINOV3_TRT_CPP_BUILD_TESTS)
