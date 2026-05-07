@@ -15,6 +15,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from dinov3_trt.artifacts import ArtifactLayout  # noqa: E402
+from dinov3_trt.contracts import make_dinov3_vitl16_contract  # noqa: E402
 from dinov3_trt.export.official_model import (  # noqa: E402
     add_dinov3_source_to_path,
     create_official_vitl16_model,
@@ -43,6 +44,15 @@ def main() -> int:
     parser.add_argument("--output", type=Path, default=None)
     parser.add_argument("--opset", type=int, default=18)
     parser.add_argument("--batch-size", type=int, default=1)
+    parser.add_argument(
+        "--image-size",
+        type=int,
+        default=224,
+        help=(
+            "Square input resolution (default 224). Must be ≥ patch_size (16) and ideally a "
+            "multiple of 16 for clean patch grid. V1.0.4 uses 512."
+        ),
+    )
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--dtype", choices=("float32", "float16"), default="float32")
     parser.add_argument("--static-batch", action="store_true")
@@ -70,6 +80,7 @@ def main() -> int:
         )
         dtype = torch_dtype(args.dtype)
         model = model.to(device=args.device, dtype=dtype).eval()
+        contract = make_dinov3_vitl16_contract(image_size=args.image_size)
         with torch.no_grad():
             result = export_model_to_onnx(
                 model,
@@ -83,6 +94,7 @@ def main() -> int:
                     apply_rope_patch=False,
                     dynamo=args.dynamo,
                 ),
+                contract=contract,
             )
         if args.validate_no_if:
             assert_no_onnx_if_nodes(output_path)
